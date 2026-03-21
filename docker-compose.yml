@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  python_sidecar:
+    build:
+      context: ./python_sidecar
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - MODEL_NAME=${EMBED_MODEL_NAME:-all-MiniLM-L6-v2}
+      - WORKERS=${EMBED_WORKERS:-2}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EMBED_URL=http://python_sidecar:8001
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - HTTP_PORT=8080
+      - FAISS_INDEX_PATH=/data/faiss.index
+      - EMBED_DIM=384
+    volumes:
+      - faiss_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      python_sidecar:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  faiss_data:

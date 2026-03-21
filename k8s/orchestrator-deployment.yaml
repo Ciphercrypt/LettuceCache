@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lettucecache-orchestrator
+  namespace: lettucecache
+  labels:
+    app.kubernetes.io/name: lettucecache
+    app.kubernetes.io/component: orchestrator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lettucecache-orchestrator
+  template:
+    metadata:
+      labels:
+        app: lettucecache-orchestrator
+        app.kubernetes.io/name: lettucecache
+        app.kubernetes.io/component: orchestrator
+    spec:
+      containers:
+        - name: orchestrator
+          image: lettucecache-orchestrator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: lettucecache-config
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lettucecache-secrets
+                  key: openai-api-key
+          volumeMounts:
+            - name: faiss-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+      volumes:
+        - name: faiss-data
+          persistentVolumeClaim:
+            claimName: faiss-pvc

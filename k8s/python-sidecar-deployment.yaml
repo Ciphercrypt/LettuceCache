@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embedding-sidecar
+  namespace: lettucecache
+  labels:
+    app.kubernetes.io/name: lettucecache
+    app.kubernetes.io/component: embedding-sidecar
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: embedding-sidecar
+  template:
+    metadata:
+      labels:
+        app: embedding-sidecar
+        app.kubernetes.io/name: lettucecache
+        app.kubernetes.io/component: embedding-sidecar
+    spec:
+      containers:
+        - name: embedding-sidecar
+          image: lettucecache-embedding-sidecar:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8001
+              protocol: TCP
+          env:
+            - name: MODEL_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: lettucecache-config
+                  key: EMBED_MODEL_NAME
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"

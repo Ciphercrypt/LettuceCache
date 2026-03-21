@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lettucecache-config
+  namespace: lettucecache
+  labels:
+    app.kubernetes.io/name: lettucecache
+data:
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  EMBED_URL: "http://embedding-sidecar-service:8001"
+  HTTP_PORT: "8080"
+  FAISS_INDEX_PATH: "/data/faiss.index"
+  EMBED_DIM: "384"
+  EMBED_MODEL_NAME: "all-MiniLM-L6-v2"
