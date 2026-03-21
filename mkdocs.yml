@@ -40,8 +40,6 @@ theme:
 
 plugins:
   - search
-  - minify:
-      minify_html: true
 
 markdown_extensions:
   - admonition
@@ -95,9 +93,8 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/Ciphercrypt/LettuceCache
 
-# Mermaid JS — required for diagram rendering
 extra_javascript:
-  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - assets/mermaid-init.js
 
 extra_css:
   - assets/extra.css

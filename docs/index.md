@@ -100,11 +100,11 @@ curl -s -X POST http://localhost:8080/query \
 flowchart TD
     A([POST /query]) --> B[ContextBuilder]
     B --> C{L1: Redis\nexact hash}
-    C -- hit --> Z([Return &lt;1ms])
+    C -- hit --> Z([Return under 1ms])
     C -- miss --> D[EmbeddingClient\nPython sidecar]
     D --> E{L2: FAISS\nIVF+PQ ANN}
-    E --> F{ValidationService\nscore ≥ 0.85?}
-    F -- hit --> G([Return &lt;30ms])
+    E --> F{ValidationService\nscore >= 0.85?}
+    F -- hit --> G([Return under 30ms])
     F -- miss --> H[LLMAdapter\nOpenAI]
     H --> I([Return response])
     H --> J[Async enqueue]
@@ -123,38 +123,25 @@ flowchart TD
 
 ## Get Started
 
-<div class="grid cards" markdown>
-
--   :material-rocket-launch: **Quick Start**
-
-    ---
-
-    Up and running in 5 minutes with Docker Compose.
-
-    [:octicons-arrow-right-24: Quick Start](getting-started/quickstart.md)
-
--   :material-cog: **Configuration**
-
-    ---
-
-    All environment variables and tunable parameters explained.
-
-    [:octicons-arrow-right-24: Configuration](getting-started/configuration.md)
-
--   :material-brain: **How It Works**
-
-    ---
-
-    Deep dive into context signatures, scoring, and the async write path.
-
-    [:octicons-arrow-right-24: How It Works](how-it-works/overview.md)
-
--   :material-api: **API Reference**
-
-    ---
-
-    Every endpoint, field, status code, and response example.
-
-    [:octicons-arrow-right-24: API Reference](api/endpoints.md)
-
+<div class="lc-cards">
+  <a class="lc-card" href="getting-started/quickstart/">
+    <div class="lc-card-icon">🚀</div>
+    <div class="lc-card-title">Quick Start</div>
+    <div class="lc-card-body">Up and running in 5 minutes with Docker Compose.</div>
+  </a>
+  <a class="lc-card" href="getting-started/configuration/">
+    <div class="lc-card-icon">⚙️</div>
+    <div class="lc-card-title">Configuration</div>
+    <div class="lc-card-body">All environment variables and tunable parameters explained.</div>
+  </a>
+  <a class="lc-card" href="how-it-works/overview/">
+    <div class="lc-card-icon">🧠</div>
+    <div class="lc-card-title">How It Works</div>
+    <div class="lc-card-body">Deep dive into context signatures, scoring, and the async write path.</div>
+  </a>
+  <a class="lc-card" href="api/endpoints/">
+    <div class="lc-card-icon">📡</div>
+    <div class="lc-card-title">API Reference</div>
+    <div class="lc-card-body">Every endpoint, field, status code, and response example.</div>
+  </a>
 </div>
