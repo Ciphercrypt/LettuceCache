@@ -1,0 +1,98 @@
+site_name: LettuceCache
+site_description: Context-aware semantic cache for LLMs — stops redundant API calls without false hits.
+site_url: https://ciphercrypt.github.io/LettuceCache
+repo_url: https://github.com/Ciphercrypt/LettuceCache
+repo_name: Ciphercrypt/LettuceCache
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - toc.follow
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quickstart.md
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+  - How It Works:
+    - Overview: how-it-works/overview.md
+    - Context Signatures: how-it-works/context-signatures.md
+    - Validation Scoring: how-it-works/validation.md
+    - Admission Control: how-it-works/admission-control.md
+    - Async Write Path: how-it-works/async-write-path.md
+  - API Reference:
+    - Endpoints: api/endpoints.md
+  - Deployment:
+    - Docker Compose: deployment/docker.md
+    - Kubernetes: deployment/kubernetes.md
+  - Development:
+    - Building from Source: development/building.md
+    - Running Tests: development/testing.md
+    - Contributing: development/contributing.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Ciphercrypt/LettuceCache
+
+copyright: Copyright &copy; 2025 LettuceCache

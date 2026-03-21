@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="48" fill="#2e7d32"/>
+  <!-- Lettuce leaf shape -->
+  <ellipse cx="50" cy="55" rx="30" ry="22" fill="#66bb6a"/>
+  <ellipse cx="38" cy="48" rx="18" ry="14" fill="#81c784" transform="rotate(-20 38 48)"/>
+  <ellipse cx="62" cy="48" rx="18" ry="14" fill="#81c784" transform="rotate(20 62 48)"/>
+  <ellipse cx="50" cy="40" rx="14" ry="12" fill="#a5d6a7"/>
+  <!-- Cache symbol: small lightning bolt -->
+  <path d="M53 30 L46 44 L51 44 L47 58 L58 40 L52 40 Z" fill="#fff" opacity="0.9"/>
+</svg>
