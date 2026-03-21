@@ -4,16 +4,18 @@ The `ValidationService` decides whether a FAISS candidate is good enough to serv
 
 ## The Score Formula
 
+```python
+score = (0.60 * cosine_similarity(query_embedding, candidate_embedding)
+       + 0.25 * context_signature_match   # 1.0 if SHA-256 matches, else 0.0
+       + 0.15 * domain_match)             # 1.0 if domains match, else 0.0
 ```
-score = W_COSINE  × cosine_similarity(query_embedding, candidate_embedding)
-      + W_CONTEXT × context_signature_match
-      + W_DOMAIN  × domain_match
 
-where:
-  W_COSINE  = 0.60
-  W_CONTEXT = 0.25
-  W_DOMAIN  = 0.15
-```
+| Component | Weight | Type | Max contribution |
+|---|:---:|---|:---:|
+| Cosine similarity | 0.60 | Continuous [0, 1] | 0.60 |
+| Context signature match | 0.25 | Binary | 0.25 |
+| Domain match | 0.15 | Binary | 0.15 |
+| **Total** | **1.00** | | **1.00** |
 
 A candidate is returned as a hit when `score ≥ threshold` (default: **0.85**).
 
@@ -24,7 +26,7 @@ A candidate is returned as a hit when `score ≥ threshold` (default: **0.85**).
 Measures the semantic similarity between the query embedding and the stored embedding:
 
 ```
-cosine(a, b) = (a · b) / (|a| × |b|)
+cosine(a, b) = dot(a, b) / (norm(a) * norm(b))
 ```
 
 Computed in pure C++ over the 384-dimensional `all-MiniLM-L6-v2` vectors. A value of 1.0 means the embeddings are identical; 0.0 means orthogonal.

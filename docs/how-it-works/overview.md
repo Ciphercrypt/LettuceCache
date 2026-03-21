@@ -82,10 +82,14 @@ See [Async Write Path](async-write-path.md) for details.
 
 ## Key Design Properties
 
-**No false hits on context mismatch.** The context signature (`SHA-256(intent:domain:anon_user_scope)`) must match for L1 to hit. For L2, the context signature accounts for 25% of the validation score — a mismatch significantly drops the score below threshold.
+!!! success "No false hits on context mismatch"
+    The context signature (`SHA-256(intent:domain:anon_user_scope)`) must match for L1 to hit. For L2, the context signature accounts for 25% of the validation score — a mismatch caps the maximum achievable score at 0.75, safely below the 0.85 threshold.
 
-**Writes never block reads.** The `CacheBuilderWorker` runs on a separate thread with a `std::condition_variable` queue. The orchestrator enqueues and returns immediately.
+!!! info "Writes never block reads"
+    The `CacheBuilderWorker` runs on a separate thread with a `std::condition_variable` queue. The orchestrator calls `enqueue()` and returns the HTTP response immediately — write latency is zero from the client's perspective.
 
-**Stateless orchestrator.** The caller passes the full `context[]` array on every request. No server-side session state is maintained.
+!!! tip "Stateless orchestrator"
+    The caller passes the full `context[]` array on every request. No server-side session state is maintained, which means the orchestrator scales horizontally with no synchronization overhead.
 
-**Privacy by design.** `user_id` is hashed to a 16-character anonymous scope token before storage. Raw query text is never stored in FAISS — only embeddings and templatized responses.
+!!! abstract "Privacy by design"
+    `user_id` is hashed to a 16-character anonymous scope token before use and never persisted. Raw query text is never stored in FAISS — only embeddings and templatized responses with high-entropy tokens stripped.
