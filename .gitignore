@@ -1,0 +1,30 @@
+# Build
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+*.a
+*.so
+*.dylib
+lettucecache
+
+# FAISS index
+*.index
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Env
+.env
+
+# macOS
+.DS_Store
