@@ -226,3 +226,51 @@ std::vector<float> TurboQuantizer::decode(const std::vector<uint8_t>& codes) con
         throw std::invalid_argument("TurboQuantizer::decode: insufficient code size");
     return decode(codes.data());
 }
+
+// ── inner_product() — unbiased estimator: E[result] = <y, x> ─────────────────
+// Two-term form: <y, x̂_mse> + (√(π/2)/d) · (S·y)ᵀ · sign_bits
+float TurboQuantizer::inner_product(const float* y, const uint8_t* codes) const {
+    const int mse_bits = TQ_BITS - 1;
+    float norm;
+    std::memcpy(&norm, codes, sizeof(float));
+    if (norm < 1e-10f) return 0.0f;
+
+    std::vector<uint8_t> codes_vec(codes, codes + code_size_bytes_);
+
+    // MSE term: norm * <RHT(y), centroids/√d>
+    std::vector<float> y_rot(padded_dim_, 0.0f);
+    for (size_t i = 0; i < dim_; ++i) y_rot[i] = y[i];
+    rht(y_rot, true);
+
+    const auto& cb         = codebooks_[mse_bits - 1];
+    const float inv_sqrt_d = 1.0f / std::sqrt(static_cast<float>(dim_));
+    float mse_ip = 0.0f;
+    for (size_t j = 0; j < dim_; ++j) {
+        uint32_t bin = unpackBits(codes_vec, mse_byte_offset_, j, mse_bits);
+        mse_ip += cb.centroids[bin] * inv_sqrt_d * y_rot[j];
+    }
+    mse_ip *= norm;
+
+    // QJL correction: (√(π/2)/d) · Σ_row sign_row · (S_row · y)
+    const float qjl_scale = std::sqrt(M_PI / 2.0f) / static_cast<float>(dim_);
+    float qjl_corr = 0.0f;
+    for (size_t row = 0; row < dim_; ++row) {
+        int sign = ((codes[qjl_byte_offset_ + row / 8] >> (row % 8)) & 1) ? 1 : -1;
+        float s_dot_y = 0.0f;
+        const float* s_row = qjl_matrix_.data() + row * dim_;
+        for (size_t k = 0; k < dim_; ++k) s_dot_y += s_row[k] * y[k];
+        qjl_corr += static_cast<float>(sign) * s_dot_y;
+    }
+    qjl_corr *= qjl_scale;
+
+    return mse_ip + qjl_corr;
+}
+
+float TurboQuantizer::inner_product(const std::vector<float>& y,
+                                     const std::vector<uint8_t>& codes) const {
+    if (y.size() != dim_) throw std::invalid_argument("inner_product: dim mismatch");
+    if (codes.size() < code_size_bytes_) throw std::invalid_argument("inner_product: insufficient codes");
+    return inner_product(y.data(), codes.data());
+}
+
+} // namespace lettucecache::quantization
