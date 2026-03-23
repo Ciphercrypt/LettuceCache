@@ -157,3 +157,72 @@ std::vector<float> TurboQuantizer::decodeMSE(const std::vector<uint8_t>& codes,
     }
     return buf;
 }
+
+// ── encode() — TurboQuant_prod: MSE at (b-1) bits + QJL on residual ──────────
+std::vector<uint8_t> TurboQuantizer::encode(const float* x) const {
+    const int mse_bits = TQ_BITS - 1;
+
+    float norm_sq = 0.0f;
+    for (size_t i = 0; i < dim_; ++i) norm_sq += x[i] * x[i];
+    const float norm = std::sqrt(norm_sq);
+
+    std::vector<uint8_t> codes(code_size_bytes_, uint8_t{0});
+    std::memcpy(codes.data(), &norm, sizeof(float));
+    if (norm < 1e-10f) return codes;
+
+    std::vector<float> buf(padded_dim_, 0.0f);
+    const float inv_norm = 1.0f / norm;
+    for (size_t i = 0; i < dim_; ++i) buf[i] = x[i] * inv_norm;
+    rht(buf, true);
+
+    const float sqrt_d = std::sqrt(static_cast<float>(dim_));
+    std::vector<float> scaled(dim_);
+    for (size_t i = 0; i < dim_; ++i) scaled[i] = buf[i] * sqrt_d;
+
+    encodeMSE(scaled, mse_bits, codes, mse_byte_offset_);
+
+    // Compute residual = x - x_hat_mse
+    std::vector<float> mse_buf = decodeMSE(codes, mse_byte_offset_, mse_bits);
+    rht(mse_buf, false);
+    for (size_t i = 0; i < dim_; ++i) {
+        float x_hat_i = mse_buf[i] * norm;
+        mse_buf[i] = x[i] - x_hat_i;
+    }
+
+    // QJL: sign_bits = sign(S * residual)
+    for (size_t row = 0; row < dim_; ++row) {
+        float dot = 0.0f;
+        const float* s_row = qjl_matrix_.data() + row * dim_;
+        for (size_t k = 0; k < dim_; ++k) dot += s_row[k] * mse_buf[k];
+        if (dot >= 0.0f)
+            codes[qjl_byte_offset_ + row / 8] |= static_cast<uint8_t>(1u << (row % 8));
+    }
+    return codes;
+}
+
+std::vector<uint8_t> TurboQuantizer::encode(const std::vector<float>& x) const {
+    if (x.size() != dim_) throw std::invalid_argument("TurboQuantizer::encode: dim mismatch");
+    return encode(x.data());
+}
+
+// ── decode() ─────────────────────────────────────────────────────────────────
+std::vector<float> TurboQuantizer::decode(const uint8_t* codes) const {
+    const int mse_bits = TQ_BITS - 1;
+    float norm;
+    std::memcpy(&norm, codes, sizeof(float));
+    if (norm < 1e-10f) return std::vector<float>(dim_, 0.0f);
+
+    std::vector<uint8_t> codes_vec(codes, codes + code_size_bytes_);
+    std::vector<float> buf = decodeMSE(codes_vec, mse_byte_offset_, mse_bits);
+    rht(buf, false);
+
+    std::vector<float> result(dim_);
+    for (size_t i = 0; i < dim_; ++i) result[i] = buf[i] * norm;
+    return result;
+}
+
+std::vector<float> TurboQuantizer::decode(const std::vector<uint8_t>& codes) const {
+    if (codes.size() < code_size_bytes_)
+        throw std::invalid_argument("TurboQuantizer::decode: insufficient code size");
+    return decode(codes.data());
+}
