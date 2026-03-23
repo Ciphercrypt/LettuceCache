@@ -91,3 +91,69 @@ void TurboQuantizer::rht(std::vector<float>& buf, bool forward) const {
 }
 
 } // namespace lettucecache::quantization
+
+// ── Bit packing / unpacking ───────────────────────────────────────────────────
+void TurboQuantizer::packBits(std::vector<uint8_t>& buf, size_t offset,
+                               size_t pos, int b, uint32_t idx)
+{
+    size_t bit_start = static_cast<size_t>(b) * pos;
+    size_t byte_idx  = offset + bit_start / 8;
+    size_t bit_off   = bit_start % 8;
+    int remaining = b;
+    while (remaining > 0) {
+        int bits_avail = static_cast<int>(8 - bit_off);
+        int bits_write = std::min(remaining, bits_avail);
+        uint8_t mask   = static_cast<uint8_t>((1u << bits_write) - 1u);
+        buf[byte_idx] &= ~static_cast<uint8_t>(mask << bit_off);
+        buf[byte_idx] |=  static_cast<uint8_t>((idx & mask) << bit_off);
+        idx >>= bits_write; remaining -= bits_write; ++byte_idx; bit_off = 0;
+    }
+}
+
+uint32_t TurboQuantizer::unpackBits(const std::vector<uint8_t>& buf, size_t offset,
+                                     size_t pos, int b)
+{
+    size_t bit_start = static_cast<size_t>(b) * pos;
+    size_t byte_idx  = offset + bit_start / 8;
+    size_t bit_off   = bit_start % 8;
+    int remaining = b;
+    uint32_t result = 0, shift = 0;
+    while (remaining > 0) {
+        int bits_avail = static_cast<int>(8 - bit_off);
+        int bits_read  = std::min(remaining, bits_avail);
+        uint32_t mask  = (1u << bits_read) - 1u;
+        result |= ((buf[byte_idx] >> bit_off) & mask) << shift;
+        shift += bits_read; remaining -= bits_read; ++byte_idx; bit_off = 0;
+    }
+    return result;
+}
+
+uint32_t TurboQuantizer::findBin(float z_n01, int bits) const {
+    const auto& cb = codebooks_[bits - 1];
+    auto it = std::lower_bound(cb.boundaries.begin(), cb.boundaries.end(), z_n01);
+    return static_cast<uint32_t>(it - cb.boundaries.begin());
+}
+
+// ── MSE encode / decode ───────────────────────────────────────────────────────
+size_t TurboQuantizer::encodeMSE(const std::vector<float>& rotated_scaled,
+                                  int bits, std::vector<uint8_t>& out, size_t offset) const
+{
+    size_t packed_bytes = (dim_ * bits + 7) / 8;
+    std::fill(out.begin() + offset, out.begin() + offset + packed_bytes, uint8_t{0});
+    for (size_t j = 0; j < dim_; ++j)
+        packBits(out, offset, j, bits, findBin(rotated_scaled[j], bits));
+    return packed_bytes;
+}
+
+std::vector<float> TurboQuantizer::decodeMSE(const std::vector<uint8_t>& codes,
+                                              size_t offset, int bits) const
+{
+    const auto& cb        = codebooks_[bits - 1];
+    const float inv_sqrtd = 1.0f / std::sqrt(static_cast<float>(dim_));
+    std::vector<float> buf(padded_dim_, 0.0f);
+    for (size_t j = 0; j < dim_; ++j) {
+        uint32_t bin = unpackBits(codes, offset, j, bits);
+        buf[j] = cb.centroids[bin] * inv_sqrtd;
+    }
+    return buf;
+}
