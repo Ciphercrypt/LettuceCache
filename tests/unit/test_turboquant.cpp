@@ -86,3 +86,71 @@ TEST(TurboQuantizer, UnbiasedInnerProduct_D64) {
     EXPECT_LT(std::abs(sum_true/N - sum_est/N), 0.05)
         << "Bias: true=" << sum_true/N << " est=" << sum_est/N;
 }
+
+// ── ValidationService dry-run with TurboQuant ────────────────────────────────
+#include "cache/FaissVectorStore.h"
+#include "orchestrator/ContextBuilder.h"
+#include "validation/ValidationService.h"
+using namespace lettucecache::cache;
+using namespace lettucecache::orchestrator;
+using namespace lettucecache::validation;
+
+TEST(ValidationDryRun, TurboQuantScoringPath) {
+    const size_t D = 64;
+    TurboQuantizer tq(D);
+    auto emb = makeUnitVec(D, 42);
+
+    CacheEntry entry;
+    entry.id = "e1"; entry.embedding = emb;
+    entry.tq_codes = tq.encode(emb);
+    entry.context_signature = "sig-abc"; entry.domain = "finance";
+
+    ContextObject ctx;
+    ctx.embedding = emb; ctx.signature_hash = "sig-abc"; ctx.domain = "finance";
+
+    ValidationService vs(0.85, &tq);
+    EXPECT_GT(vs.score(ctx, entry), 0.80);
+    EXPECT_TRUE(vs.isHit(ctx, entry));
+}
+
+TEST(ValidationDryRun, TurboQuantOrthogonalVector) {
+    const size_t D = 128;
+    TurboQuantizer tq(D);
+    auto v1 = makeUnitVec(D, 100);
+    auto v2 = makeUnitVec(D, 200);
+    float proj = 0.0f;
+    for (size_t i = 0; i < D; ++i) proj += v1[i]*v2[i];
+    float ns = 0.0f;
+    for (size_t i = 0; i < D; ++i) { v2[i] -= proj*v1[i]; ns += v2[i]*v2[i]; }
+    float inv = 1.0f/std::sqrt(ns);
+    for (auto& x : v2) x *= inv;
+
+    CacheEntry entry;
+    entry.id = "e2"; entry.embedding = v1;
+    entry.tq_codes = tq.encode(v1);
+    entry.context_signature = "sig-xyz"; entry.domain = "medical";
+
+    ContextObject ctx;
+    ctx.embedding = v2; ctx.signature_hash = "different"; ctx.domain = "finance";
+
+    ValidationService vs(0.85, &tq);
+    EXPECT_LT(vs.score(ctx, entry), 0.30);
+    EXPECT_FALSE(vs.isHit(ctx, entry));
+}
+
+TEST(ValidationDryRun, DotProductEqualsCosineFOrNormalisedVectors) {
+    const size_t D = 64;
+    auto v1 = makeUnitVec(D, 1), v2 = makeUnitVec(D, 2);
+    CacheEntry entry;
+    entry.id = "e3"; entry.embedding = v2;
+    entry.context_signature = "s1"; entry.domain = "general";
+
+    ContextObject ctx;
+    ctx.embedding = v1; ctx.signature_hash = "s1"; ctx.domain = "general";
+
+    ValidationService vs(0.85, nullptr);
+    float expected_cos = 0.0f;
+    for (size_t i = 0; i < D; ++i) expected_cos += v1[i]*v2[i];
+    double expected_score = 0.60*expected_cos + 0.25 + 0.15;
+    EXPECT_NEAR(vs.score(ctx, entry), expected_score, 0.001);
+}
