@@ -74,6 +74,7 @@ set(LIB_SOURCES
     src/embedding/EmbeddingClient.cpp
     src/llm/OpenAIAdapter.cpp
     src/api/HttpServer.cpp
+    src/quantization/TurboQuantizer.cpp
 )
 
 add_library(lettucecache_lib STATIC ${LIB_SOURCES})
