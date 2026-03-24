@@ -5,6 +5,7 @@ set(UNIT_SOURCES
     test_context_signature.cpp
     test_admission_controller.cpp
     test_templatizer.cpp
+    test_turboquant.cpp
 )
 
 add_executable(unit_tests ${UNIT_SOURCES})
