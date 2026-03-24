@@ -213,3 +213,73 @@ info "── 6. Same intent, different phrasing → same L1 key ──"
 # "What is machine learning?" and "machine learning" → intent: "machine_learning"
 Q_PARAPHRASE='{"query":"machine learning","user_id":"alice","domain":"tech","correlation_id":"hp-6"}'
 R6=$(query "$Q_PARAPHRASE")
+assert_eq "cache_hit=true for same-intent paraphrase" "True" "$(get_field "$R6" "cache_hit")"
+assert_eq "confidence=1.0 (L1)"                       "1.0"  "$(get_field "$R6" "confidence")"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 7. L2 HIT — simulate L1 TTL expiry, FAISS + TurboQuant serves from vector
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 7. L2 HIT (after L1 expiry, TurboQuant unbiased IP) ──"
+L1_SIG_KEY=$(redis-cli KEYS "lc:l1:*" | head -1)
+redis-cli DEL "$L1_SIG_KEY" > /dev/null
+R7=$(query "$Q")
+assert_eq  "cache_hit=true on L2"                   "True" "$(get_field "$R7" "cache_hit")"
+assert_gt  "TurboQuant confidence > 0.8"            "0.8"  "$(get_field "$R7" "confidence")"
+assert_not_contains "L2 answer rendered (no SLOT_)"  "{{SLOT_" "$(get_field "$R7" "answer")"
+assert_eq  "L2 answer equals original LLM response" "$L1_ANSWER" "$(get_field "$R7" "answer")"
+
+L2_ENTRY_ID=$(get_field "$R7" "cache_entry_id")
+# L2 hit returns FAISS entry ID (not lc:l1: prefix)
+if echo "$L2_ENTRY_ID" | grep -qv "^lc:l1:"; then
+    ok "L2 cache_entry_id is FAISS ID (not L1 key)"
+else
+    fail "L2 cache_entry_id should be FAISS ID, got: $L2_ENTRY_ID"
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 8. L1 backfill after L2 hit
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 8. L1 backfill (next identical query after L2 hit) ──"
+R8=$(query "$Q")
+assert_eq "cache_hit=true after backfill"  "True" "$(get_field "$R8" "cache_hit")"
+assert_eq "confidence=1.0 (L1 backfill)"  "1.0"  "$(get_field "$R8" "confidence")"
+assert_lt "L1 backfill latency < 5ms"     "5"    "$(get_field "$R8" "latency_ms")"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 9. Context isolation — different user must NOT hit alice's cache
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 9. Context isolation (different user → miss) ──────"
+Q_BOB='{"query":"What is machine learning?","user_id":"bob","domain":"tech","correlation_id":"hp-9"}'
+R9=$(query "$Q_BOB")
+assert_eq "cache_hit=false for different user" "False" "$(get_field "$R9" "cache_hit")"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 10. Domain isolation — same user, different domain → miss
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 10. Domain isolation (different domain → miss) ────"
+Q_DOMAIN='{"query":"What is machine learning?","user_id":"alice","domain":"biology","correlation_id":"hp-10"}'
+R10=$(query "$Q_DOMAIN")
+assert_eq "cache_hit=false for different domain" "False" "$(get_field "$R10" "cache_hit")"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 11. Context canonicalization — reversed context order → same L1 key
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 11. Context canonicalization (reordered turns → same key) ──"
+QC_A='{"query":"What is machine learning?","user_id":"carol","domain":"tech","context":["user: hi","bot: hello"],"correlation_id":"hp-11a"}'
+QC_B='{"query":"What is machine learning?","user_id":"carol","domain":"tech","context":["bot: hello","user: hi"],"correlation_id":"hp-11b"}'
+# Prime carol's cache
+query "$QC_A" > /dev/null
+query "$QC_A" > /dev/null
+sleep 1
+# Query with reversed context — should hit same key
+R11=$(query "$QC_B")
+assert_eq "cache_hit=true for reordered context" "True" "$(get_field "$R11" "cache_hit")"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 12. Templatizer slot rendering — L2 serves filled response, not raw template
+# ═════════════════════════════════════════════════════════════════════════════
