@@ -53,3 +53,36 @@ TEST(TurboQuantizer, EncodeDecodeRoundTrip_384Dim) {
     for (size_t i = 0; i < 384; ++i) { float d = x[i]-x_hat[i]; mse += d*d; }
     EXPECT_LT(mse, 0.15f) << "MSE d=384: " << mse;
 }
+
+// ── Zero vector and seed independence ─────────────────────────────────────────
+TEST(TurboQuantizer, ZeroVector) {
+    TurboQuantizer tq(32);
+    std::vector<float> zero(32, 0.0f);
+    auto x_hat = tq.decode(tq.encode(zero));
+    for (float v : x_hat) EXPECT_FLOAT_EQ(v, 0.0f);
+}
+
+TEST(TurboQuantizer, DifferentSeedsDifferentCodes) {
+    auto v = makeUnitVec(32, 1);
+    TurboQuantizer tq1(32, 1, 2), tq2(32, 3, 4);
+    EXPECT_NE(tq1.encode(v), tq2.encode(v));
+}
+
+// ── Unbiasedness of inner_product (N=500 trials) ─────────────────────────────
+// E[tq.inner_product(y, encode(x))] = <y, x>  (Theorem 2, arXiv:2504.19874)
+TEST(TurboQuantizer, UnbiasedInnerProduct_D64) {
+    const size_t D = 64; const int N = 500;
+    TurboQuantizer tq(D, 42, 137);
+    auto y = makeUnitVec(D, 9999);
+    double sum_true = 0.0, sum_est = 0.0;
+    for (int i = 0; i < N; ++i) {
+        auto x = makeUnitVec(D, static_cast<uint64_t>(i+1));
+        auto codes = tq.encode(x);
+        float ip = 0.0f;
+        for (size_t j = 0; j < D; ++j) ip += y[j]*x[j];
+        sum_true += ip;
+        sum_est  += tq.inner_product(y, codes);
+    }
+    EXPECT_LT(std::abs(sum_true/N - sum_est/N), 0.05)
+        << "Bias: true=" << sum_true/N << " est=" << sum_est/N;
+}
