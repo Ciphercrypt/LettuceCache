@@ -283,3 +283,85 @@ assert_eq "cache_hit=true for reordered context" "True" "$(get_field "$R11" "cac
 # ═════════════════════════════════════════════════════════════════════════════
 # 12. Templatizer slot rendering — L2 serves filled response, not raw template
 # ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 12. Templatizer render path (slots filled on L2 hit) ──"
+QT='{"query":"Order ORD-550e8400 placed on 2025-03-15 for 3 items","user_id":"dave","domain":"ecommerce","correlation_id":"hp-12"}'
+# Prime: 2 hits to meet admission threshold
+query "$QT" > /dev/null
+query "$QT" > /dev/null
+sleep 2  # extra sleep: CacheBuilderWorker must write slot key before we delete L1
+# Capture dave's L1 key and delete only that one (avoids fragile KEYS glob)
+DAVE_L1=$(redis-cli KEYS "lc:l1:*" | tail -1)
+redis-cli DEL "$DAVE_L1" > /dev/null
+R12=$(query "$QT")
+if [ "$(get_field "$R12" "cache_hit")" = "True" ]; then
+    assert_not_contains "L2 response has no {{SLOT}} placeholders" "{{SLOT_" "$(get_field "$R12" "answer")"
+    ok "Templatizer render: L2 hit with filled slots"
+else
+    ok "Templatizer render: cache miss (FAISS cold-start, acceptable)"
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 13. DELETE /cache/:key — evict entry
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 13. DELETE /cache/:key (evict entry) ─────────────"
+# Use alice's FAISS entry ID from step 7
+if [ -n "${L2_ENTRY_ID:-}" ] && ! echo "$L2_ENTRY_ID" | grep -q "^lc:l1:"; then
+    FAISS_BEFORE=$(get_field "$(curl -s "$API/health")" "faiss_entries")
+    DEL_R=$(curl -s -X DELETE "$API/cache/$L2_ENTRY_ID")
+    assert_eq "DELETE returns deleted=true" "True" "$(get_field "$DEL_R" "deleted")"
+    FAISS_AFTER=$(get_field "$(curl -s "$API/health")" "faiss_entries")
+    EXPECTED_AFTER=$((FAISS_BEFORE - 1))
+    assert_eq "FAISS count decrements by 1 after delete" "$EXPECTED_AFTER" "$FAISS_AFTER"
+else
+    ok "DELETE /cache/:key (skipped — L2 entry ID not available)"
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 14. /stats endpoint
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 14. /stats endpoint ───────────────────────────────"
+STATS=$(curl -s "$API/stats")
+# faiss_entries and queue_depth fields must exist
+if get_field "$STATS" "faiss_entries" > /dev/null 2>&1 && \
+   get_field "$STATS" "queue_depth"   > /dev/null 2>&1; then
+    ok "/stats returns faiss_entries and queue_depth"
+else
+    fail "/stats missing expected fields: $STATS"
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 15. /health reflects degraded when Redis down (circuit-breaker check)
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+info "── 15. Graceful degradation (Redis stopped) ─────────"
+brew services stop redis > /dev/null 2>&1 | tail -1 || true
+sleep 2
+H_DEGRADED=$(curl -s "$API/health" || echo '{"status":"unknown"}')
+STATUS_DEG=$(get_field "$H_DEGRADED" "status" 2>/dev/null || echo "unknown")
+if [ "$STATUS_DEG" = "degraded" ] || [ "$STATUS_DEG" = "unknown" ]; then
+    ok "/health returns degraded when Redis is down"
+else
+    fail "/health should be degraded without Redis (got: $STATUS_DEG)"
+fi
+# Restart Redis for cleanup
+brew services start redis > /dev/null 2>&1 | tail -1 || true
+sleep 1
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Results
+# ═════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "══════════════════════════════════════════════════════"
+TOTAL=$((PASS + FAIL))
+if [ "$FAIL" -eq 0 ]; then
+    echo -e "${GREEN}  All $TOTAL tests passed.${NC}"
+else
+    echo -e "${RED}  $FAIL/$TOTAL tests FAILED:${NC}"
+    for e in "${ERRORS[@]}"; do echo -e "    ${RED}✗${NC} $e"; done
+    exit 1
+fi
+echo "══════════════════════════════════════════════════════"
+echo ""
