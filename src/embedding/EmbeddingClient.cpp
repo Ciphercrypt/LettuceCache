@@ -13,115 +13,184 @@ size_t writeCallback(char* ptr, size_t size, size_t nmemb, std::string* out) {
     return size * nmemb;
 }
 
-std::string postJson(const std::string& url,
-                     const std::string& body,
-                     int timeout_ms)
-{
-    CURL* curl = curl_easy_init();
-    if (!curl) throw std::runtime_error("curl_easy_init failed");
+} // anonymous namespace
 
-    std::string response;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeout_ms));
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
+// ──────────────────────────────────────────────────────────────────────────────
+// CURL lifecycle — persistent handle eliminates per-call TLS handshake overhead
+// ──────────────────────────────────────────────────────────────────────────────
+void EmbeddingClient::initCurl() {
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl_ = curl_easy_init();
+    if (!curl_) throw std::runtime_error("EmbeddingClient: curl_easy_init failed");
+    json_headers_ = curl_slist_append(nullptr, "Content-Type: application/json");
+    curl_easy_setopt(curl_, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl_, CURLOPT_TCP_KEEPIDLE, 30L);
+    curl_easy_setopt(curl_, CURLOPT_TCP_KEEPINTVL, 10L);
+}
 
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+void EmbeddingClient::teardownCurl() {
+    if (json_headers_) { curl_slist_free_all(json_headers_); json_headers_ = nullptr; }
+    if (curl_)         { curl_easy_cleanup(curl_);           curl_ = nullptr; }
+    curl_global_cleanup();
+}
 
-    CURLcode res = curl_easy_perform(curl);
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
+EmbeddingClient::EmbeddingClient(const std::string& base_url) : base_url_(base_url) {
+    initCurl();
+}
 
-    if (res != CURLE_OK) {
-        throw std::runtime_error(std::string("curl error: ") + curl_easy_strerror(res));
+EmbeddingClient::~EmbeddingClient() {
+    teardownCurl();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Circuit breaker helpers
+// ──────────────────────────────────────────────────────────────────────────────
+bool EmbeddingClient::allowRequest() {
+    std::lock_guard<std::mutex> lock(cb_mutex_);
+    CircuitState s = state_.load();
+    if (s == CircuitState::CLOSED) return true;
+
+    if (s == CircuitState::OPEN) {
+        auto elapsed = std::chrono::steady_clock::now() - open_since_;
+        if (std::chrono::duration_cast<std::chrono::seconds>(elapsed).count()
+                >= RESET_TIMEOUT_S)
+        {
+            state_.store(CircuitState::HALF_OPEN);
+            spdlog::info("EmbeddingClient: circuit OPEN → HALF_OPEN (probing)");
+            return true;
+        }
+        return false;
     }
+    return true;  // HALF_OPEN: allow the probe
+}
+
+void EmbeddingClient::recordSuccess() {
+    std::lock_guard<std::mutex> lock(cb_mutex_);
+    failure_count_ = 0;
+    if (state_.load() != CircuitState::CLOSED) {
+        state_.store(CircuitState::CLOSED);
+        spdlog::info("EmbeddingClient: circuit → CLOSED");
+    }
+}
+
+void EmbeddingClient::recordFailure() {
+    std::lock_guard<std::mutex> lock(cb_mutex_);
+    ++failure_count_;
+    if (state_.load() == CircuitState::HALF_OPEN ||
+        failure_count_ >= FAILURE_THRESHOLD)
+    {
+        state_.store(CircuitState::OPEN);
+        open_since_ = std::chrono::steady_clock::now();
+        spdlog::warn("EmbeddingClient: circuit → OPEN (failures={})", failure_count_);
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// doPost — persistent CURL handle + circuit breaker gate
+// curl_easy_reset() clears all options but keeps the TCP connection alive,
+// so the next call reuses the existing HTTP/1.1 keep-alive connection.
+// ──────────────────────────────────────────────────────────────────────────────
+std::optional<std::string> EmbeddingClient::doPost(const std::string& path,
+                                                    const std::string& body)
+{
+    if (!allowRequest()) {
+        spdlog::debug("EmbeddingClient::doPost: circuit OPEN, skipping {}", path);
+        return std::nullopt;
+    }
+
+    std::lock_guard<std::mutex> lock(curl_mutex_);
+    std::string response;
+    std::string url = base_url_ + path;
+
+    curl_easy_reset(curl_);
+    curl_easy_setopt(curl_, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl_, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl_, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, body.c_str());
+    curl_easy_setopt(curl_, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    curl_easy_setopt(curl_, CURLOPT_HTTPHEADER, json_headers_);
+    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl_, CURLOPT_TIMEOUT_MS, static_cast<long>(TIMEOUT_MS));
+    curl_easy_setopt(curl_, CURLOPT_CONNECTTIMEOUT_MS,
+                     static_cast<long>(CONNECT_TIMEOUT_MS));
+
+    CURLcode res = curl_easy_perform(curl_);
+    if (res != CURLE_OK) {
+        spdlog::warn("EmbeddingClient: curl error on {}: {}", path,
+                     curl_easy_strerror(res));
+        recordFailure();
+        return std::nullopt;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code >= 500) {
+        spdlog::warn("EmbeddingClient: HTTP {} from sidecar on {}", http_code, path);
+        recordFailure();
+        return std::nullopt;
+    }
+
+    recordSuccess();
     return response;
 }
 
-} // anonymous namespace
-
-EmbeddingClient::EmbeddingClient(const std::string& base_url)
-    : base_url_(base_url)
-{
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-}
-
+// ──────────────────────────────────────────────────────────────────────────────
+// Public API
+// ──────────────────────────────────────────────────────────────────────────────
 std::vector<float> EmbeddingClient::embed(const std::string& text) {
     try {
         nlohmann::json req;
         req["text"] = text;
-        std::string body = req.dump();
-
-        std::string raw = postJson(base_url_ + "/embed", body, TIMEOUT_MS);
-        auto resp = nlohmann::json::parse(raw);
-
-        std::vector<float> vec;
-        if (resp.contains("embedding") && resp["embedding"].is_array()) {
-            for (auto& v : resp["embedding"]) {
-                vec.push_back(v.get<float>());
-            }
-        } else {
-            spdlog::warn("EmbeddingClient: unexpected response format");
-        }
-        return vec;
+        auto raw = doPost("/embed", req.dump());
+        if (!raw) return {};
+        auto resp = nlohmann::json::parse(*raw);
+        if (resp.contains("embedding") && resp["embedding"].is_array())
+            return resp["embedding"].get<std::vector<float>>();
+        spdlog::warn("EmbeddingClient::embed: unexpected response");
     } catch (const std::exception& e) {
-        spdlog::error("EmbeddingClient::embed failed: {}", e.what());
-        return {};
+        spdlog::error("EmbeddingClient::embed: {}", e.what());
     }
+    return {};
 }
 
 std::vector<std::vector<float>> EmbeddingClient::embedBatch(
     const std::vector<std::string>& texts)
 {
     std::vector<std::vector<float>> results;
-    results.reserve(texts.size());
     try {
         nlohmann::json req;
         req["texts"] = texts;
-        std::string body = req.dump();
-
-        std::string raw = postJson(base_url_ + "/embed_batch", body, TIMEOUT_MS);
-        auto resp = nlohmann::json::parse(raw);
-
+        auto raw = doPost("/embed_batch", req.dump());
+        if (!raw) return results;
+        auto resp = nlohmann::json::parse(*raw);
         if (resp.contains("embeddings") && resp["embeddings"].is_array()) {
-            for (auto& emb_arr : resp["embeddings"]) {
-                std::vector<float> vec;
-                for (auto& v : emb_arr) vec.push_back(v.get<float>());
-                results.push_back(std::move(vec));
-            }
+            for (const auto& arr : resp["embeddings"])
+                results.push_back(arr.get<std::vector<float>>());
         }
     } catch (const std::exception& e) {
-        spdlog::error("EmbeddingClient::embedBatch failed: {}", e.what());
+        spdlog::error("EmbeddingClient::embedBatch: {}", e.what());
     }
     return results;
 }
 
 bool EmbeddingClient::healthCheck() {
-    try {
-        CURL* curl = curl_easy_init();
-        if (!curl) return false;
+    if (!allowRequest()) return false;
+    std::lock_guard<std::mutex> lock(curl_mutex_);
 
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_URL, (base_url_ + "/health").c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
+    std::string response;
+    curl_easy_reset(curl_);
+    curl_easy_setopt(curl_, CURLOPT_URL, (base_url_ + "/health").c_str());
+    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl_, CURLOPT_TIMEOUT_MS, 2000L);
 
-        CURLcode res = curl_easy_perform(curl);
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        curl_easy_cleanup(curl);
-
-        return (res == CURLE_OK) && (http_code == 200);
-    } catch (...) {
-        return false;
-    }
+    CURLcode res = curl_easy_perform(curl_);
+    long http_code = 0;
+    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &http_code);
+    bool ok = (res == CURLE_OK) && (http_code == 200);
+    if (ok) recordSuccess(); else recordFailure();
+    return ok;
 }
 
 } // namespace lettucecache::embedding
