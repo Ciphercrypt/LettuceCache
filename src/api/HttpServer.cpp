@@ -8,6 +8,7 @@
 #include "../builder/Templatizer.h"
 #include "../builder/CacheBuilderWorker.h"
 #include "../orchestrator/QueryOrchestrator.h"
+#include "../quantization/TurboQuantizer.h"
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
