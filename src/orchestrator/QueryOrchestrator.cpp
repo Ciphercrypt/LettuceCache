@@ -59,10 +59,26 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
                       candidate.id, s, req.correlation_id);
 
         if (s >= VALIDATION_THRESHOLD) {
-            // Read slot values stored at cache-write time
+            // Reconstruct the full response: read slot values from Redis and
+            // call Templatizer::render() to fill {{SLOT_N}} placeholders.
+            // Falls back to the raw template if slots are unavailable (e.g. expired).
             std::string rendered = candidate.template_str;
             auto slots_json = redis_.get("lc:slots:" + candidate.id);
-            // Backfill L1 to accelerate future identical lookups
+            if (slots_json.has_value()) {
+                try {
+                    auto slot_values =
+                        nlohmann::json::parse(*slots_json).get<std::vector<std::string>>();
+                    rendered = builder::Templatizer::render(candidate.template_str,
+                                                            slot_values);
+                } catch (const std::exception& e) {
+                    spdlog::warn("L2 render failed for id={}: {}", candidate.id, e.what());
+                }
+            } else {
+                spdlog::debug("L2 slot values expired for id={}, returning raw template",
+                              candidate.id);
+            }
+
+            // Backfill L1 with the rendered (slot-filled) response
             redis_.set(l1_key, rendered, L1_TTL_SECONDS);
             long long ms = elapsed();
             spdlog::info("L2 hit id={} score={:.3f} latency_ms={} correlation_id={}",
