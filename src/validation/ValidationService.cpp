@@ -11,18 +11,13 @@ double ValidationService::cosineSimilarity(
     const std::vector<float>& a,
     const std::vector<float>& b)
 {
+    // Embeddings are L2-normalised by the Python sidecar - dot product == cosine.
+    // Skips the two sqrt calls that were always computing sqrt(1.0) * sqrt(1.0).
     if (a.empty() || b.empty() || a.size() != b.size()) return 0.0;
-
-    double dot = 0.0, norm_a = 0.0, norm_b = 0.0;
-    for (size_t i = 0; i < a.size(); ++i) {
-        double ai = static_cast<double>(a[i]);
-        double bi = static_cast<double>(b[i]);
-        dot    += ai * bi;
-        norm_a += ai * ai;
-        norm_b += bi * bi;
-    }
-    double denom = std::sqrt(norm_a) * std::sqrt(norm_b);
-    return (denom < 1e-10) ? 0.0 : (dot / denom);
+    double dot = 0.0;
+    for (size_t i = 0; i < a.size(); ++i)
+        dot += static_cast<double>(a[i]) * static_cast<double>(b[i]);
+    return dot;
 }
 
 double ValidationService::contextSignatureScore(
