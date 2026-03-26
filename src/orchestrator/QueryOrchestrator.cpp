@@ -1,5 +1,7 @@
 #include "QueryOrchestrator.h"
 #include "ContextBuilder.h"
+#include "../builder/Templatizer.h"
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 
