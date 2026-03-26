@@ -59,12 +59,15 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
                       candidate.id, s, req.correlation_id);
 
         if (s >= VALIDATION_THRESHOLD) {
+            // Read slot values stored at cache-write time
+            std::string rendered = candidate.template_str;
+            auto slots_json = redis_.get("lc:slots:" + candidate.id);
             // Backfill L1 to accelerate future identical lookups
-            redis_.set(l1_key, candidate.template_str, L1_TTL_SECONDS);
+            redis_.set(l1_key, rendered, L1_TTL_SECONDS);
             long long ms = elapsed();
             spdlog::info("L2 hit id={} score={:.3f} latency_ms={} correlation_id={}",
                          candidate.id, s, ms, req.correlation_id);
-            return QueryResponse{candidate.template_str, true, s, candidate.id, ms};
+            return QueryResponse{rendered, true, s, candidate.id, ms};
         }
     }
 
