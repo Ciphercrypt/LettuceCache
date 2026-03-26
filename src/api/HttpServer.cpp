@@ -30,10 +30,19 @@ HttpServer::HttpServer(const std::string& redis_host,
     : http_port_(http_port)
 {
     redis_      = std::make_unique<cache::RedisCacheAdapter>(redis_host, redis_port);
-    faiss_      = std::make_unique<cache::FaissVectorStore>(embed_dim, faiss_path);
+    if (std::getenv("ENABLE_TURBO_QUANT") &&
+        std::string(std::getenv("ENABLE_TURBO_QUANT")) == "1")
+    {
+        tq_ = std::make_unique<quantization::TurboQuantizer>(
+            static_cast<size_t>(embed_dim));
+        spdlog::info("TurboQuant enabled (dim={} code_size={} bytes)",
+                     embed_dim, tq_->code_size());
+    }
+    faiss_      = std::make_unique<cache::FaissVectorStore>(embed_dim, faiss_path,
+                                                             tq_.get());
     embedder_   = std::make_unique<embedding::EmbeddingClient>(embed_url);
     llm_        = std::make_unique<llm::OpenAIAdapter>(openai_key);
-    validator_  = std::make_unique<validation::ValidationService>(0.85);
+    validator_  = std::make_unique<validation::ValidationService>(0.85, tq_.get());
     admission_  = std::make_unique<builder::AdmissionController>(2, 300, 32768);
     templatizer_ = std::make_unique<builder::Templatizer>();
     builder_    = std::make_unique<builder::CacheBuilderWorker>(
