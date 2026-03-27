@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LettuceCache — Context-Aware Semantic Cache for LLMs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+:root{
+  --bg:#080d1a;--bg2:#0d1526;--bg3:#111c30;--border:#1e2d45;
+  --green:#10b981;--green2:#059669;--purple:#6366f1;--cyan:#22d3ee;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --red:#f87171;--orange:#fb923c;--yellow:#fbbf24;
+  --sidebar:260px;--radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+code,pre{font-family:'JetBrains Mono',monospace}
+
+/* ── Sidebar ── */
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar);height:100vh;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:100;display:flex;flex-direction:column;transition:transform .3s}
+.sidebar-logo{padding:24px 20px 16px;border-bottom:1px solid var(--border)}
+.sidebar-logo .logo-text{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.5px}
+.sidebar-logo .logo-sub{font-size:11px;color:var(--text3);margin-top:2px}
+nav{padding:16px 0;flex:1}
+.nav-section{margin-bottom:4px}
+.nav-section-label{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;padding:8px 20px 4px}
+.nav-link{display:flex;align-items:center;gap:8px;padding:8px 20px;font-size:13.5px;color:var(--text2);text-decoration:none;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.nav-link:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.nav-link.active{color:var(--green);border-left-color:var(--green);background:rgba(16,185,129,.06)}
+.nav-link .icon{width:16px;text-align:center;font-size:14px}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
+.github-link{display:flex;align-items:center;gap:8px;padding:9px 14px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;color:var(--text2);text-decoration:none;font-size:12.5px;font-weight:500;transition:all .15s}
+.github-link:hover{background:rgba(255,255,255,.08);color:var(--text)}
+.github-link svg{flex-shrink:0}
+
+/* ── Main ── */
+#main{margin-left:var(--sidebar);min-height:100vh}
+section{padding:72px 64px;max-width:900px;opacity:0;transform:translateY(20px);transition:opacity .5s,transform .5s}
+section.visible{opacity:1;transform:none}
+
+/* ── Typography ── */
+h1{font-size:52px;font-weight:800;line-height:1.1;letter-spacing:-2px;margin-bottom:16px}
+h2{font-size:28px;font-weight:700;letter-spacing:-.5px;margin-bottom:8px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+h3{font-size:18px;font-weight:600;margin-bottom:8px;color:var(--text)}
+h4{font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+p{color:var(--text2);margin-bottom:16px;font-size:15px}
+strong{color:var(--text);font-weight:600}
+
+/* ── Hero ── */
+.hero-gradient{background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:18px;color:var(--text2);max-width:560px;line-height:1.7;margin-bottom:32px}
+.metrics{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:40px}
+.metric-pill{padding:8px 16px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);border-radius:100px;font-size:13px;font-weight:600;color:var(--green)}
+
+/* ── Terminal demo ── */
+.terminal{background:#060b16;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:40px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.terminal-bar{display:flex;align-items:center;gap:6px;padding:12px 16px;background:#0a1120;border-bottom:1px solid var(--border)}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.terminal-bar span{margin-left:8px;font-size:12px;color:var(--text3)}
+.terminal-body{padding:20px;font-size:13px;line-height:1.8}
+.t-prompt{color:var(--green)}
+.t-cmd{color:var(--text)}
+.t-out{color:var(--text2)}
+.t-hit{color:var(--green);font-weight:600}
+.t-miss{color:var(--orange)}
+.t-comment{color:var(--text3)}
+.blink{animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ── Comparison table ── */
+.compare-table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:32px}
+.compare-table th{padding:12px 16px;text-align:left;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)}
+.compare-table td{padding:12px 16px;border-bottom:1px solid rgba(30,45,69,.5);color:var(--text2)}
+.compare-table tr:hover td{background:rgba(255,255,255,.02)}
+.check{color:var(--green);font-weight:700}
+.cross{color:var(--red)}
+
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;transition:border-color .2s,box-shadow .2s}
+.card:hover{border-color:rgba(16,185,129,.3);box-shadow:0 0 32px rgba(16,185,129,.06)}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px}
+.card-icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:15px;margin-bottom:6px}
+.card p{font-size:13px;margin:0}
+
+/* ── Architecture SVG ── */
+.arch-diagram{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:32px;margin-bottom:32px;overflow:hidden}
+.arch-svg{width:100%;max-width:780px;display:block;margin:0 auto}
+
+/* ── Flow steps ── */
+.flow-steps{display:flex;flex-direction:column;gap:0;margin-bottom:32px}
+.flow-step{display:flex;gap:20px;position:relative;padding-bottom:24px}
+.flow-step:last-child{padding-bottom:0}
+.flow-step::before{content:'';position:absolute;left:18px;top:36px;bottom:0;width:1px;background:var(--border)}
+.flow-step:last-child::before{display:none}
+.step-num{width:36px;height:36px;border-radius:50%;background:rgba(16,185,129,.1);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--green);flex-shrink:0}
+.step-body h3{font-size:15px;margin-bottom:6px;padding-top:6px}
+.step-body p{font-size:13.5px;margin:0}
+.step-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:8px;vertical-align:middle}
+.tag-green{background:rgba(16,185,129,.15);color:var(--green)}
+.tag-blue{background:rgba(99,102,241,.15);color:#818cf8}
+.tag-orange{background:rgba(251,146,60,.15);color:var(--orange)}
+
+/* ── Validation ── */
+.score-formula{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:24px;font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--text);margin:24px 0;text-align:center;line-height:2}
+.score-formula .w{color:var(--green);font-weight:600}
+.score-formula .plus{color:var(--text3)}
+.score-interactive{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:28px}
+.score-interactive h3{font-size:15px;margin-bottom:20px;color:var(--text)}
+.slider-row{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.slider-row label{font-size:13px;color:var(--text2);width:180px;flex-shrink:0}
+.slider-row input[type=range]{flex:1;accent-color:var(--green)}
+.slider-row .val{width:40px;text-align:right;font-size:13px;font-weight:600;color:var(--green);font-family:'JetBrains Mono',monospace}
+.toggle-row{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.toggle-row label{font-size:13px;color:var(--text2);width:180px;flex-shrink:0}
+.toggle-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
+.toggle-btn.on{background:rgba(16,185,129,.15);border-color:var(--green);color:var(--green)}
+.score-bar-wrap{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+.score-bar-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px}
+.score-bar-track{height:12px;background:var(--bg3);border-radius:100px;overflow:hidden;position:relative}
+.score-bar-fill{height:100%;border-radius:100px;transition:width .3s,background .3s}
+.score-threshold{position:absolute;right:15%;top:-20px;font-size:11px;color:var(--text3)}
+.score-threshold::after{content:'';position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:1px;height:28px;background:rgba(148,163,184,.3)}
+.score-verdict{margin-top:12px;font-size:14px;font-weight:600;text-align:center;padding:8px;border-radius:8px}
+.verdict-hit{background:rgba(16,185,129,.1);color:var(--green)}
+.verdict-miss{background:rgba(248,113,113,.1);color:var(--red)}
+
+.score-examples{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px}
+.score-example{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.score-example.hit{border-color:rgba(16,185,129,.3)}
+.score-example.miss{border-color:rgba(248,113,113,.25)}
+.score-example .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-bottom:12px}
+.badge-hit{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-miss{background:rgba(248,113,113,.15);color:var(--red)}
+.score-example p{font-size:12.5px;margin-bottom:8px}
+.score-example .calc{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);background:var(--bg3);padding:10px;border-radius:6px;line-height:1.8}
+.score-example .final{font-size:22px;font-weight:800;margin-top:8px}
+.final-hit{color:var(--green)}
+.final-miss{color:var(--red)}
+
+/* ── Context sig ── */
+.sig-steps{display:flex;flex-direction:column;gap:12px;margin-bottom:24px}
+.sig-step{display:flex;align-items:flex-start;gap:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+.sig-step-num{width:28px;height:28px;border-radius:50%;background:rgba(99,102,241,.15);border:1.5px solid #818cf8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#818cf8;flex-shrink:0}
+.sig-step-body h4{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;text-transform:none;letter-spacing:0}
+.sig-step-body code{font-size:12px;color:var(--cyan);background:rgba(34,211,238,.08);padding:2px 6px;border-radius:4px}
+.sig-arrow{text-align:center;font-size:18px;color:var(--text3)}
+
+/* ── Admission timeline ── */
+.timeline{display:flex;flex-direction:column;gap:0;margin-bottom:28px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.tl-row{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);font-size:13px}
+.tl-row:last-child{border-bottom:none}
+.tl-req{padding:12px 20px;width:140px;flex-shrink:0;font-weight:600;color:var(--text)}
+.tl-count{padding:12px 20px;width:100px;flex-shrink:0;font-family:'JetBrains Mono',monospace;color:var(--cyan)}
+.tl-result{padding:12px 20px;flex:1;color:var(--text2)}
+.tl-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:100px;font-size:11px;font-weight:700;margin-left:8px}
+.tl-admit{background:rgba(16,185,129,.15);color:var(--green)}
+.tl-reject{background:rgba(248,113,113,.15);color:var(--red)}
+
+/* ── TurboQuant ── */
+.tq-hero{background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(16,185,129,.08));border:1px solid rgba(99,102,241,.25);border-radius:var(--radius);padding:28px;margin-bottom:24px;text-align:center}
+.tq-hero .big{font-size:42px;font-weight:800;background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:block;line-height:1.2;margin-bottom:4px}
+.tq-hero .sub{font-size:14px;color:var(--text2)}
+.tq-stages{display:grid;grid-template-columns:1fr auto 1fr;gap:0;align-items:center;margin-bottom:24px}
+.tq-stage{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.tq-stage h4{color:var(--text);text-transform:none;letter-spacing:0;font-size:14px;margin-bottom:8px}
+.tq-stage p{font-size:13px;margin:0}
+.tq-arrow{text-align:center;font-size:20px;color:var(--text3);padding:0 8px}
+.memory-table{width:100%;border-collapse:collapse;font-size:13px;font-family:'JetBrains Mono',monospace;margin-bottom:24px}
+.memory-table td{padding:10px 14px;border:1px solid var(--border)}
+.memory-table td:first-child{color:var(--text2);width:40%}
+.memory-table td:nth-child(2){color:var(--cyan)}
+.memory-table td:nth-child(3){color:var(--text3)}
+.memory-total{background:rgba(16,185,129,.06)}
+.memory-total td{font-weight:700;color:var(--green)!important}
+
+/* ── API ── */
+.api-tabs{display:flex;gap:2px;margin-bottom:24px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:4px}
+.api-tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;color:var(--text2)}
+.api-tab:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.api-tab.active{background:rgba(16,185,129,.1);color:var(--green)}
+.api-panel{display:none}
+.api-panel.active{display:block}
+.endpoint-badge{display:inline-flex;align-items:center;gap:10px;margin-bottom:20px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-family:'JetBrains Mono',monospace;font-size:14px}
+.method{padding:4px 8px;border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.5px}
+.method-post{background:rgba(99,102,241,.2);color:#818cf8}
+.method-get{background:rgba(16,185,129,.2);color:var(--green)}
+.method-delete{background:rgba(248,113,113,.2);color:var(--red)}
+.path{color:var(--text)}
+.field-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:24px}
+.field-table th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);background:var(--bg3);border-bottom:1px solid var(--border)}
+.field-table td{padding:10px 14px;border-bottom:1px solid rgba(30,45,69,.5);vertical-align:top}
+.field-table td:first-child{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--cyan)}
+.field-table td:nth-child(2){color:var(--purple);font-family:'JetBrains Mono',monospace;font-size:12px}
+.field-table td:last-child{color:var(--text2)}
+.req-badge{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:rgba(248,113,113,.15);color:var(--red);vertical-align:middle;margin-left:4px}
+
+/* ── Config ── */
+.config-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:32px}
+.config-table th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);background:var(--bg3);border-bottom:1px solid var(--border)}
+.config-table td{padding:11px 14px;border-bottom:1px solid rgba(30,45,69,.4);vertical-align:top}
+.config-table td:first-child{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--cyan)}
+.config-table td:nth-child(2){font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--purple)}
+.config-table td:last-child{color:var(--text2);font-size:13px}
+
+/* ── Code blocks ── */
+.code-wrap{position:relative;margin:16px 0}
+.code-wrap pre{border-radius:var(--radius);font-size:12.5px!important;line-height:1.7!important;padding:20px!important}
+.copy-btn{position:absolute;top:10px;right:10px;padding:4px 10px;background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+.copy-btn:hover{background:rgba(255,255,255,.12);color:var(--text)}
+
+/* ── Callout ── */
+.callout{display:flex;gap:12px;padding:16px 20px;border-radius:10px;margin:16px 0;font-size:14px}
+.callout-green{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2)}
+.callout-blue{background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2)}
+.callout-orange{background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.2)}
+.callout-icon{font-size:18px;flex-shrink:0;line-height:1.4}
+.callout p{margin:0;color:var(--text)}
+
+/* ── Quick start steps ── */
+.qs-steps{counter-reset:qs}
+.qs-step{padding:24px 0;border-bottom:1px solid var(--border)}
+.qs-step:last-child{border-bottom:none}
+.qs-step::before{counter-increment:qs;content:counter(qs);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--green);color:#000;font-size:13px;font-weight:800;margin-bottom:10px}
+.qs-step h3{margin-top:8px}
+
+/* ── Mobile hamburger ── */
+.hamburger{display:none;position:fixed;top:16px;left:16px;z-index:200;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  #sidebar{transform:translateX(-100%)}
+  #sidebar.open{transform:translateX(0)}
+  #main{margin-left:0}
+  section{padding:40px 24px}
+  h1{font-size:34px}
+  .score-examples{grid-template-columns:1fr}
+  .tq-stages{grid-template-columns:1fr}
+  .tq-arrow{display:none}
+  .hamburger{display:block}
+  .overlay.open{display:block}
+  .api-tabs{flex-wrap:wrap}
+}
+
+/* ── Animated flow diagram ── */
+.flow-path{stroke-dasharray:1000;stroke-dashoffset:1000;animation:dash 2s ease forwards}
+.flow-path.delay1{animation-delay:.2s}
+.flow-path.delay2{animation-delay:.5s}
+.flow-path.delay3{animation-delay:.9s}
+.flow-path.delay4{animation-delay:1.3s}
+@keyframes dash{to{stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+
+<button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+  <svg width="18" height="14" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="0" y1="1" x2="18" y2="1"/><line x1="0" y1="7" x2="18" y2="7"/><line x1="0" y1="13" x2="18" y2="13"/>
+  </svg>
+</button>
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+<aside id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">🥬 LettuceCache</div>
+    <div class="logo-sub">Context-aware semantic cache for LLMs</div>
+  </div>
+  <nav>
+    <div class="nav-section">
+      <a class="nav-link active" onclick="nav('home')"><span class="icon">🏠</span>Home</a>
+      <a class="nav-link" onclick="nav('architecture')"><span class="icon">🏗</span>Architecture</a>
+      <a class="nav-link" onclick="nav('how-it-works')"><span class="icon">⚙️</span>How It Works</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">Deep Dive</div>
+      <a class="nav-link" onclick="nav('validation')"><span class="icon">⚖️</span>Validation Scoring</a>
+      <a class="nav-link" onclick="nav('context-signatures')"><span class="icon">🔑</span>Context Signatures</a>
+      <a class="nav-link" onclick="nav('admission-control')"><span class="icon">🚦</span>Admission Control</a>
+      <a class="nav-link" onclick="nav('turbo-quant')"><span class="icon">⚡</span>TurboQuant</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">Reference</div>
+      <a class="nav-link" onclick="nav('api')"><span class="icon">📡</span>API Reference</a>
+      <a class="nav-link" onclick="nav('configuration')"><span class="icon">🔧</span>Configuration</a>
+      <a class="nav-link" onclick="nav('quick-start')"><span class="icon">🚀</span>Quick Start</a>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <a class="github-link" href="https://github.com/Ciphercrypt/LettuceCache" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</aside>
+
+<main id="main">
+
+<!-- ══════════════════════════════ HOME ══════════════════════════════ -->
+<section id="home">
+  <h1><span class="hero-gradient">LettuceCache</span></h1>
+  <p class="hero-sub">Context-aware semantic cache for LLMs. Stops redundant API calls without false hits — because the same question means different things in different conversations.</p>
+  <div class="metrics">
+    <span class="metric-pill">⚡ &lt;1ms L1 hit</span>
+    <span class="metric-pill">🎯 &lt;30ms L2 hit</span>
+    <span class="metric-pill">🚀 37× faster than LLM</span>
+    <span class="metric-pill">🔒 Context-isolated</span>
+  </div>
+
+  <div class="terminal">
+    <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>lettucecache demo</span></div>
+    <div class="terminal-body" id="terminal-body">
+      <div><span class="t-comment"># First call — LLM is invoked</span></div>
+      <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"ecommerce"}'</span></div>
+      <div class="t-out">{ "cache_hit": <span class="t-miss">false</span>, "latency_ms": <span class="t-miss">843</span>, "answer": "Items can be returned within 30 days..." }</div>
+      <div style="margin-top:12px"><span class="t-comment"># Second call — served from cache instantly</span></div>
+      <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"ecommerce"}'</span></div>
+      <div class="t-out">{ "cache_hit": <span class="t-hit">true</span>, "confidence": 0.94, "latency_ms": <span class="t-hit">22</span>, "answer": "Items can be returned within 30 days..." }</div>
+      <div style="margin-top:12px"><span class="t-comment"># Same query, different context — correctly misses</span></div>
+      <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"fitness"}'</span></div>
+      <div class="t-out">{ "cache_hit": <span class="t-miss">false</span>, "latency_ms": <span class="t-miss">761</span>, "answer": "Our gym membership cancellation policy..." }</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:48px">The Problem</h2>
+  <p>Traditional caching matches on exact text. Semantic caching matches on meaning. Both fail for context-dependent queries:</p>
+  <div class="card" style="margin:16px 0 28px;border-left:3px solid var(--orange)">
+    <p style="margin:0;font-size:15px;color:var(--text)"><strong>User A</strong> — <em>"What is the cancellation policy?"</em> (hotel booking)<br>
+    <strong>User B</strong> — <em>"What is the cancellation policy?"</em> (gym membership)</p>
+    <p style="margin:8px 0 0;color:var(--red);font-size:14px">A naive semantic cache serves User B the hotel answer — a false hit worse than a miss.</p>
+  </div>
+  <table class="compare-table">
+    <thead><tr><th>Approach</th><th>Exact match</th><th>Semantic match</th><th>Context-aware</th></tr></thead>
+    <tbody>
+      <tr><td>Traditional KV cache</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+      <tr><td>Semantic cache (embedding only)</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td></tr>
+      <tr><td><strong>LettuceCache</strong></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Key Numbers</h3>
+  <table class="compare-table">
+    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>L1 cache latency (Redis)</td><td class="check">&lt; 1 ms</td></tr>
+      <tr><td>L2 cache latency (FAISS + TurboQuant)</td><td class="check">5–10 ms</td></tr>
+      <tr><td>End-to-end cache hit</td><td class="check">&lt; 30 ms</td></tr>
+      <tr><td>LLM call baseline</td><td style="color:var(--orange)">500–2000 ms</td></tr>
+      <tr><td>Validation threshold</td><td style="color:var(--text)">0.85 (configurable)</td></tr>
+      <tr><td>Embedding model</td><td style="color:var(--text)">all-MiniLM-L6-v2 (384 dims)</td></tr>
+      <tr><td>TurboQuant compression</td><td class="check">7.8× (1536B → 196B, d=384)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════ ARCHITECTURE ══════════════════════════════ -->
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p>LettuceCache sits between your application and the LLM. Every query passes through two cache layers before touching OpenAI.</p>
+
+  <div class="arch-diagram">
+    <svg class="arch-svg" viewBox="0 0 760 420" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#10b981"/></marker>
+        <marker id="arrowB" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6366f1"/></marker>
+        <marker id="arrowO" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fb923c"/></marker>
+        <marker id="arrowGr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#64748b"/></marker>
+      </defs>
+
+      <!-- HTTP Request node -->
+      <rect x="10" y="185" width="110" height="44" rx="8" fill="#0d1526" stroke="#10b981" stroke-width="1.5"/>
+      <text x="65" y="202" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">POST</text>
+      <text x="65" y="218" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter">/query</text>
+
+      <!-- ContextBuilder -->
+      <rect x="155" y="168" width="110" height="78" rx="8" fill="#0d1526" stroke="#1e2d45" stroke-width="1.5"/>
+      <text x="210" y="195" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Context</text>
+      <text x="210" y="210" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Builder</text>
+      <text x="210" y="230" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">intent + hash</text>
+
+      <!-- L1 Redis -->
+      <rect x="300" y="155" width="120" height="100" rx="8" fill="#0a1a14" stroke="#10b981" stroke-width="1.5"/>
+      <text x="360" y="183" text-anchor="middle" fill="#10b981" font-size="11" font-family="Inter" font-weight="700">L1 · Redis</text>
+      <text x="360" y="199" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">exact hash match</text>
+      <text x="360" y="215" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">lc:l1:{sig_hash}</text>
+      <text x="360" y="235" text-anchor="middle" fill="#64748b" font-size="9" font-family="Inter" font-style="italic">&lt; 1ms</text>
+
+      <!-- L2 FAISS -->
+      <rect x="300" y="290" width="120" height="100" rx="8" fill="#0e0e1f" stroke="#6366f1" stroke-width="1.5"/>
+      <text x="360" y="318" text-anchor="middle" fill="#818cf8" font-size="11" font-family="Inter" font-weight="700">L2 · FAISS</text>
+      <text x="360" y="334" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">IVF+PQ + TurboQuant</text>
+      <text x="360" y="350" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">top-5 ANN search</text>
+      <text x="360" y="370" text-anchor="middle" fill="#64748b" font-size="9" font-family="Inter" font-style="italic">5–10ms</text>
+
+      <!-- EmbeddingClient -->
+      <rect x="155" y="290" width="110" height="78" rx="8" fill="#0d1526" stroke="#1e2d45" stroke-width="1.5"/>
+      <text x="210" y="318" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Embedding</text>
+      <text x="210" y="333" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Client</text>
+      <text x="210" y="352" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">384-dim vector</text>
+
+      <!-- ValidationService -->
+      <rect x="460" y="290" width="120" height="100" rx="8" fill="#0d1526" stroke="#1e2d45" stroke-width="1.5"/>
+      <text x="520" y="325" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Validation</text>
+      <text x="520" y="341" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">score ≥ 0.85</text>
+      <text x="520" y="357" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">0.6·cos+0.25·ctx</text>
+      <text x="520" y="373" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">+0.15·domain</text>
+
+      <!-- LLM -->
+      <rect x="620" y="185" width="120" height="78" rx="8" fill="#1a0e0e" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="680" y="215" text-anchor="middle" fill="#fb923c" font-size="11" font-family="Inter" font-weight="700">LLM</text>
+      <text x="680" y="231" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">OpenAI gpt-4o-mini</text>
+      <text x="680" y="247" text-anchor="middle" fill="#64748b" font-size="9" font-family="Inter" font-style="italic">500–2000ms</td>
+
+      <!-- CacheBuilder -->
+      <rect x="620" y="290" width="120" height="78" rx="8" fill="#0d1526" stroke="#1e2d45" stroke-width="1.5"/>
+      <text x="680" y="318" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Cache</text>
+      <text x="680" y="333" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="Inter" font-weight="600">Builder</text>
+      <text x="680" y="352" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter">async · admission</text>
+
+      <!-- Hit labels -->
+      <text x="360" y="148" text-anchor="middle" fill="#10b981" font-size="10" font-family="Inter" font-weight="600">L1 HIT → return &lt;1ms</text>
+      <rect x="300" y="136" width="120" height="18" rx="4" fill="rgba(16,185,129,0.08)" stroke="rgba(16,185,129,0.2)"/>
+
+      <!-- Arrows — request path -->
+      <path class="flow-path" d="M120,207 L155,207" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#arrowG)"/>
+      <path class="flow-path delay1" d="M265,207 L300,195" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#arrowG)"/>
+      <!-- L1 miss → embed -->
+      <path class="flow-path delay2" d="M265,240 L210,290" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrowB)"/>
+      <!-- embed → FAISS -->
+      <path class="flow-path delay2" d="M265,330 L300,330" stroke="#6366f1" stroke-width="1.5" fill="none" marker-end="url(#arrowB)"/>
+      <!-- FAISS → validation -->
+      <path class="flow-path delay3" d="M420,330 L460,330" stroke="#6366f1" stroke-width="1.5" fill="none" marker-end="url(#arrowB)"/>
+      <!-- miss → LLM -->
+      <path class="flow-path delay3" d="M520,290 L680,263" stroke="#fb923c" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrowO)"/>
+      <!-- LLM → async builder -->
+      <path class="flow-path delay4" d="M680,263 L680,290" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrowGr)"/>
+      <!-- builder → back to cache -->
+      <path class="flow-path delay4" d="M620,330 L420,330" stroke="#64748b" stroke-width="1.5" fill="none" stroke-dasharray="3,3" marker-end="url(#arrowGr)"/>
+
+      <!-- Miss label -->
+      <text x="237" y="270" fill="#6366f1" font-size="9" font-family="Inter" font-style="italic">L1 miss</text>
+      <text x="490" y="280" fill="#fb923c" font-size="9" font-family="Inter" font-style="italic">L2 miss</text>
+      <text x="600" y="310" fill="#64748b" font-size="9" font-family="Inter" font-style="italic">async</text>
+    </svg>
+  </div>
+
+  <h3>Services</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🔧</div>
+      <h3>C++ Orchestrator</h3>
+      <p>Port 8080 · Hot path · All component wiring · cpp-httplib multi-threaded</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🐍</div>
+      <h3>Python Sidecar</h3>
+      <p>Port 8001 · FastAPI · all-MiniLM-L6-v2 · 384-dim L2-normalised embeddings</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <h3>Redis L1</h3>
+      <p>Port 6379 · Exact hash match · SETEX 3600s TTL · sub-millisecond</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔍</div>
+      <h3>FAISS L2</h3>
+      <p>In-process · IVF+PQ index · top-k=5 ANN · TurboQuant compressed</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ HOW IT WORKS ══════════════════════════════ -->
+<section id="how-it-works">
+  <h2>How It Works</h2>
+  <p>Every request flows through a deterministic pipeline. Here is the exact sequence:</p>
+
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Client sends POST /query</h3>
+        <p>Request includes <code>query</code> text, <code>context[]</code> array of prior turns, <code>domain</code> (e.g. "ecommerce"), optional <code>user_id</code> and <code>correlation_id</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>ContextBuilder computes signature <span class="step-tag tag-green">CPU only</span></h3>
+        <p>Extracts top-3 non-stopword tokens as <em>intent</em>. Hashes <code>user_id</code> to 16-char anonymous scope. Sorts <code>context[]</code> canonically. Computes <code>SHA-256(intent:domain:scope:sorted_context)</code> as the <strong>signature_hash</strong>.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>L1 Redis lookup <span class="step-tag tag-green">&lt; 1ms</span></h3>
+        <p>Checks <code>lc:l1:{signature_hash}</code>. On hit: returns immediately with <code>confidence=1.0</code>. On miss: proceeds to embedding.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h3>Embed query via Python sidecar <span class="step-tag tag-blue">~10ms</span></h3>
+        <p>POST to <code>:8001/embed</code>. Returns 384-dim float array, L2-normalised (<code>normalize_embeddings=True</code>). Circuit breaker prevents cascade failures if sidecar is down.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h3>FAISS search + ValidationService <span class="step-tag tag-blue">5–10ms</span></h3>
+        <p>Returns top-5 candidates. Each scored: <code>0.60×cosine + 0.25×ctx_match + 0.15×domain_match</code>. First candidate with score ≥ 0.85 wins. On hit: backfills L1 with the rendered response (slot placeholders filled).</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h3>LLM fallback + async cache build <span class="step-tag tag-orange">500ms+</span></h3>
+        <p>Calls <code>OpenAI gpt-4o-mini</code>. Response returned to client immediately. Entry enqueued to <code>CacheBuilderWorker</code> (background thread) — admission check, templatization, FAISS+Redis write. Client never waits for this.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-green">
+    <div class="callout-icon">🔒</div>
+    <p><strong>Privacy by design.</strong> <code>user_id</code> is hashed to a 16-char token and never stored raw. Query text is never persisted — only the 384-dim embedding and a templatized response with high-entropy tokens (UUIDs, dates, numbers, proper nouns) replaced by <code>{{SLOT_N}}</code> placeholders.</p>
+  </div>
+
+  <div class="callout callout-blue">
+    <div class="callout-icon">⚡</div>
+    <p><strong>Writes never block reads.</strong> The <code>CacheBuilderWorker</code> runs on a dedicated background thread with a <code>std::condition_variable</code> queue. The orchestrator calls <code>enqueue()</code> and returns the HTTP response immediately.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ VALIDATION ══════════════════════════════ -->
+<section id="validation">
+  <h2>Validation Scoring</h2>
+  <p>The <code>ValidationService</code> computes a weighted composite score for each FAISS candidate. The first candidate scoring above the threshold (default 0.85) is returned as a hit.</p>
+
+  <div class="score-formula">
+    score = <span class="w">0.60</span> × cosine_similarity + <span class="w">0.25</span> × context_match + <span class="w">0.15</span> × domain_match
+  </div>
+
+  <!-- Interactive demo -->
+  <div class="score-interactive">
+    <h3>Interactive Score Calculator</h3>
+    <div class="slider-row">
+      <label>Cosine similarity</label>
+      <input type="range" min="0" max="1" step="0.01" value="0.85" id="sl-cos" oninput="updateScore()">
+      <span class="val" id="v-cos">0.85</span>
+    </div>
+    <div class="toggle-row">
+      <label>Context signature match</label>
+      <button class="toggle-btn on" id="btn-ctx" onclick="toggleCtx()">Match (1.0)</button>
+    </div>
+    <div class="toggle-row">
+      <label>Domain match</label>
+      <button class="toggle-btn on" id="btn-dom" onclick="toggleDom()">Match (1.0)</button>
+    </div>
+    <div class="score-bar-wrap">
+      <div class="score-bar-label">
+        <span style="font-size:13px;color:var(--text2)">Score</span>
+        <span style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace" id="score-num">0.976</span>
+      </div>
+      <div style="position:relative;padding-top:24px">
+        <span class="score-threshold">threshold 0.85</span>
+        <div class="score-bar-track">
+          <div class="score-bar-fill" id="score-bar" style="width:97.6%;background:var(--green)"></div>
+        </div>
+      </div>
+      <div class="score-verdict verdict-hit" id="score-verdict">✓ CACHE HIT</div>
+    </div>
+  </div>
+
+  <!-- Examples -->
+  <div class="score-examples">
+    <div class="score-example hit">
+      <div class="badge badge-hit">✓ HIT</div>
+      <p><strong>Same context, same domain</strong><br>"How do I cancel?" → "Can I cancel?" (paraphrase)</p>
+      <div class="calc">0.60×0.96 = 0.576<br>0.25×1.0 = 0.250<br>0.15×1.0 = 0.150</div>
+      <div class="final final-hit">0.976</div>
+    </div>
+    <div class="score-example miss">
+      <div class="badge badge-miss">✗ MISS</div>
+      <p><strong>Different context (hotel vs gym)</strong><br>Near-perfect text match, wrong context</p>
+      <div class="calc">0.60×0.99 = 0.594<br>0.25×0.0 = 0.000<br>0.15×0.0 = 0.000</div>
+      <div class="final final-miss">0.594</div>
+    </div>
+    <div class="score-example hit">
+      <div class="badge badge-hit">✓ HIT</div>
+      <p><strong>Related query, same context</strong><br>"Cancel order" → "Refund process"</p>
+      <div class="calc">0.60×0.78 = 0.468<br>0.25×1.0 = 0.250<br>0.15×1.0 = 0.150</div>
+      <div class="final final-hit">0.868</div>
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <div class="callout-icon">⚡</div>
+    <p><strong>TurboQuant-corrected scoring.</strong> With <code>ENABLE_TURBO_QUANT=1</code>, the cosine term uses the unbiased inner-product estimator: <code>E[TQ_ip(y, encode(x))] = ⟨y, x⟩</code>. This is critical — at 1-bit MSE alone, every cosine score would be scaled by 2/π ≈ 0.64, making 0.85 unreachable. TurboQuant_prod eliminates this bias entirely.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ CONTEXT SIGNATURES ══════════════════════════════ -->
+<section id="context-signatures">
+  <h2>Context Signatures</h2>
+  <p>The signature is the mechanism that prevents false hits. Two identical queries with different conversation histories will never share a cache entry.</p>
+
+  <div class="sig-steps">
+    <div class="sig-step">
+      <div class="sig-step-num">1</div>
+      <div class="sig-step-body">
+        <h4>Extract Intent</h4>
+        <p style="font-size:13px;margin:0;color:var(--text2)">"What is the cancellation policy for my booking?" → strip stopwords → <code>cancellation_policy_booking</code></p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">First 3 non-stopword tokens, lowercase, joined by underscore</p>
+      </div>
+    </div>
+    <div class="sig-arrow">↓</div>
+    <div class="sig-step">
+      <div class="sig-step-num">2</div>
+      <div class="sig-step-body">
+        <h4>Anonymise User</h4>
+        <p style="font-size:13px;margin:0;color:var(--text2)">SHA-256(<code>"user:u_12345"</code>)[:16] → <code>3a7f2c91b0e4d852</code></p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">Deterministic 16-char hex token — user_id is never stored raw</p>
+      </div>
+    </div>
+    <div class="sig-arrow">↓</div>
+    <div class="sig-step">
+      <div class="sig-step-num">3</div>
+      <div class="sig-step-body">
+        <h4>Canonicalize Context</h4>
+        <p style="font-size:13px;margin:0;color:var(--text2)"><code>["bot: hello", "user: hi"]</code> → sorted → <code>["bot: hello", "user: hi"]|</code></p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">Lexicographic sort ensures order-independent hashing</p>
+      </div>
+    </div>
+    <div class="sig-arrow">↓</div>
+    <div class="sig-step">
+      <div class="sig-step-num">4</div>
+      <div class="sig-step-body">
+        <h4>Compute SHA-256</h4>
+        <p style="font-size:13px;margin:0;color:var(--text2)">SHA-256(<code>"cancellation_policy_booking:ecommerce:3a7f2c91b0e4d852:..."</code>)</p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">= <code style="color:var(--green)">a3f2c1d8e9f0b2c3...</code> — this is the Redis L1 key suffix</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Why Context Mismatch Always Misses</h3>
+  <table class="compare-table">
+    <thead><tr><th>Scenario</th><th>Cosine</th><th>Ctx sig</th><th>Domain</th><th>Score</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Same query, same context, same domain</td><td>0.97</td><td class="check">1.0</td><td class="check">1.0</td><td class="check"><strong>0.97</strong></td><td class="check">HIT</td></tr>
+      <tr><td>Same query, <strong>different context</strong></td><td>0.97</td><td class="cross">0.0</td><td class="check">1.0</td><td class="cross"><strong>0.73</strong></td><td class="cross">MISS</td></tr>
+      <tr><td>Same query, same context, <strong>different domain</strong></td><td>0.97</td><td class="cross">0.0</td><td class="cross">0.0</td><td class="cross"><strong>0.58</strong></td><td class="cross">MISS</td></tr>
+      <tr><td>Very similar query, same context</td><td>0.93</td><td class="check">1.0</td><td class="check">1.0</td><td class="check"><strong>0.96</strong></td><td class="check">HIT</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-orange">
+    <div class="callout-icon">⚠️</div>
+    <p><strong>Context mismatch caps score at 0.75.</strong> The context term (weight 0.25) contributes a maximum of 0.25 on match. On mismatch: max score = 0.60×1.0 + 0.0 + 0.15×1.0 = 0.75 — safely below the 0.85 threshold. The cache <em>cannot</em> serve a false hit across context boundaries regardless of embedding similarity.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ ADMISSION CONTROL ══════════════════════════════ -->
+<section id="admission-control">
+  <h2>Admission Control</h2>
+  <p>Not every LLM response is worth caching. <code>AdmissionController</code> prevents one-off queries from polluting the FAISS index and keeps cached entries generalisable.</p>
+
+  <h3>Rules</h3>
+  <table class="config-table">
+    <thead><tr><th>Rule</th><th>Default</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>min_frequency</td><td>2</td><td>Same signature must be seen ≥ N times in the window</td></tr>
+      <tr><td>window_seconds</td><td>300 (5 min)</td><td>Rolling time window — counter resets after inactivity</td></tr>
+      <tr><td>max_response_bytes</td><td>32 768</td><td>Responses &gt; 32 KB are too specific to reuse</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Frequency Counting Timeline</h3>
+  <div class="timeline">
+    <div class="tl-row" style="background:var(--bg3)">
+      <div class="tl-req" style="font-size:11px;color:var(--text3);font-weight:400">Request</div>
+      <div class="tl-count" style="font-size:11px;color:var(--text3)">Count</div>
+      <div class="tl-result" style="font-size:11px;color:var(--text3)">Action</div>
+    </div>
+    <div class="tl-row"><div class="tl-req">Request #1</div><div class="tl-count">count=1</div><div class="tl-result">recordQuery() <span class="tl-badge tl-reject">✗ Rejected</span></div></div>
+    <div class="tl-row"><div class="tl-req">Request #2</div><div class="tl-count">count=2</div><div class="tl-result">shouldAdmit() = true → writes to FAISS + Redis <span class="tl-badge tl-admit">✓ Admitted</span></div></div>
+    <div class="tl-row"><div class="tl-req">Request #3+</div><div class="tl-count">count=3+</div><div class="tl-result">L1/L2 cache serves it — CacheBuilderWorker deduplicates <span class="tl-badge tl-admit">✓ Served</span></div></div>
+    <div class="tl-row" style="background:rgba(30,45,69,.3)"><div class="tl-req" style="color:var(--text3)">After 5 min idle</div><div class="tl-count" style="color:var(--text3)">reset</div><div class="tl-result" style="color:var(--text3)">evictExpired() — counter resets to 0</div></div>
+    <div class="tl-row"><div class="tl-req">Request #4</div><div class="tl-count">count=1</div><div class="tl-result">Window expired — starts fresh <span class="tl-badge tl-reject">✗ Rejected</span></div></div>
+  </div>
+
+  <div class="callout callout-green">
+    <div class="callout-icon">🗜</div>
+    <p><strong>Templatizer runs after admission.</strong> When admitted, <code>Templatizer</code> replaces high-entropy tokens (UUIDs, dates, numbers, proper nouns) with <code>{{SLOT_N}}</code> placeholders. At serve time, slot values are restored from Redis (<code>lc:slots:{entry_id}</code>). This makes cached responses reusable across minor surface variations.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ TURBOQUANT ══════════════════════════════ -->
+<section id="turbo-quant">
+  <h2>TurboQuant Integration</h2>
+  <p>TurboQuant (arXiv:2504.19874, Zandieh et al. 2025) is a data-oblivious vector quantizer that provides theoretically optimal compression with <strong>zero training time</strong> and <strong>unbiased inner-product estimation</strong>.</p>
+
+  <div class="tq-hero">
+    <span class="big">7.8×</span>
+    <span class="sub">compression for d=384 embeddings · 196 bytes vs 1536 bytes FP32</span>
+  </div>
+
+  <h3>Two-Stage Algorithm</h3>
+  <div class="tq-stages">
+    <div class="tq-stage">
+      <h4>Stage 1 — MSE Optimal (3 bits)</h4>
+      <p>Apply Randomized Hadamard Transform (RHT) to rotate the input vector onto the unit sphere. Each coordinate follows N(0, 1/d) — apply Lloyd-Max scalar quantizer per coordinate using precomputed codebooks. Achieves near-optimal MSE distortion.</p>
+    </div>
+    <div class="tq-arrow">→</div>
+    <div class="tq-stage">
+      <h4>Stage 2 — QJL Residual (1 bit)</h4>
+      <p>Compute residual = x − x̂_mse. Apply Quantized Johnson-Lindenstrauss transform: sign(S·residual) where S is a d×d Gaussian random matrix. The 1-bit output corrects the MSE bias in inner-product estimation.</p>
+    </div>
+  </div>
+
+  <h3>Memory Layout per Vector (d=384, 4-bit)</h3>
+  <table class="memory-table">
+    <tr><td>Norm (float32)</td><td>4 bytes</td><td>L2 norm of original vector</td></tr>
+    <tr><td>MSE indices (3-bit × padded_dim)</td><td>192 bytes</td><td>Lloyd-Max centroid indices, bit-packed</td></tr>
+    <tr><td>QJL sign bits (1-bit × dim)</td><td>48 bytes</td><td>sign(S·residual), bit-packed</td></tr>
+    <tr class="memory-total"><td>Total</td><td>244 bytes</td><td>vs 1536 bytes FP32 → 6.3× compression</td></tr>
+  </table>
+
+  <h3>Why Unbiasedness Matters</h3>
+  <div class="card" style="margin-bottom:16px;border-color:rgba(99,102,241,.3)">
+    <p style="margin:0;font-size:14px;color:var(--text)">At 1-bit MSE quantization, every cosine similarity score is scaled by 2/π ≈ <strong>0.64</strong>. The threshold 0.85 becomes effectively 0.85/0.64 = <strong>1.33</strong> — impossible to achieve. TurboQuant_prod provides:</p>
+    <div style="background:var(--bg3);border-radius:8px;padding:16px;margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--green)">
+      E[TQ_ip(y, encode(x))] = ⟨y, x⟩ &nbsp;&nbsp;// zero bias, always<br>
+      σ(composite_score) ≈ 0.027 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// for d=384
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <div class="callout-icon">🔧</div>
+    <p><strong>Enable TurboQuant:</strong> set <code>ENABLE_TURBO_QUANT=1</code> before starting the orchestrator. The TurboQuantizer is wired into <code>FaissVectorStore</code> (auto-encodes on <code>add()</code>) and <code>ValidationService</code> (uses unbiased inner product when <code>tq_codes</code> is populated). Zero config beyond the env var.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ API ══════════════════════════════ -->
+<section id="api">
+  <h2>API Reference</h2>
+  <p>The orchestrator exposes a REST API on port <code>8080</code> (configurable via <code>HTTP_PORT</code>).</p>
+
+  <div class="api-tabs">
+    <div class="api-tab active" onclick="apiTab('query',this)">POST /query</div>
+    <div class="api-tab" onclick="apiTab('health',this)">GET /health</div>
+    <div class="api-tab" onclick="apiTab('stats',this)">GET /stats</div>
+    <div class="api-tab" onclick="apiTab('delete',this)">DELETE /cache/:key</div>
+    <div class="api-tab" onclick="apiTab('sidecar',this)">Sidecar</div>
+  </div>
+
+  <div class="api-panel active" id="panel-query">
+    <div class="endpoint-badge"><span class="method method-post">POST</span><span class="path">/query</span></div>
+    <p>Main entry point. Checks L1 → L2 → LLM. Returns the answer with cache metadata.</p>
+    <h4>Request Body</h4>
+    <div class="code-wrap">
+      <pre><code class="language-json">{
+  "query": "What is the return policy?",
+  "context": ["I bought a jacket last week", "It doesn't fit"],
+  "user_id": "u_123",
+  "session_id": "sess_abc",
+  "domain": "ecommerce",
+  "correlation_id": "req_xyz"
+}</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>query<span class="req-badge">required</span></td><td>string</td><td>The user's question</td></tr>
+        <tr><td>context</td><td>string[]</td><td>Prior conversation turns. Sorted canonically before hashing — order doesn't matter.</td></tr>
+        <tr><td>user_id</td><td>string</td><td>Hashed to 16-char scope token. Never stored raw.</td></tr>
+        <tr><td>session_id</td><td>string</td><td>Passed through to logs for distributed tracing. Not used in cache logic.</td></tr>
+        <tr><td>domain</td><td>string</td><td>Domain tag (e.g. ecommerce, healthcare). Defaults to "general".</td></tr>
+        <tr><td>correlation_id</td><td>string</td><td>Echoed in structured logs.</td></tr>
+      </tbody>
+    </table>
+    <h4>Response</h4>
+    <div class="code-wrap">
+      <pre><code class="language-json">{
+  "answer": "You can return items within 30 days of purchase.",
+  "cache_hit": true,
+  "confidence": 0.93,
+  "cache_entry_id": "lc:l1:a3f2c1d8...",
+  "latency_ms": 18
+}</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>answer</td><td>string</td><td>The response text</td></tr>
+        <tr><td>cache_hit</td><td>boolean</td><td>true if served from L1 or L2 cache</td></tr>
+        <tr><td>confidence</td><td>float</td><td>Validation score 0.0–1.0. 1.0 on L1 hit (no scoring needed). 0.0 on LLM fallback.</td></tr>
+        <tr><td>cache_entry_id</td><td>string</td><td>FAISS entry ID on L2 hit; L1 key on L1 hit; empty on miss.</td></tr>
+        <tr><td>latency_ms</td><td>integer</td><td>Total server-side processing time</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="api-panel" id="panel-health">
+    <div class="endpoint-badge"><span class="method method-get">GET</span><span class="path">/health</span></div>
+    <p>Dependency health check. Returns 200 when all services healthy, 503 when degraded. Used as Kubernetes readiness probe.</p>
+    <div class="code-wrap">
+      <pre><code class="language-json">// 200 OK — healthy
+{
+  "status": "ok",
+  "redis": true,
+  "embedding_sidecar": true,
+  "faiss_entries": 1042,
+  "queue_depth": 3
+}
+
+// 503 Service Unavailable — degraded
+{
+  "status": "degraded",
+  "redis": false,
+  "embedding_sidecar": true,
+  "faiss_entries": 1042,
+  "queue_depth": 0
+}</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+  </div>
+
+  <div class="api-panel" id="panel-stats">
+    <div class="endpoint-badge"><span class="method method-get">GET</span><span class="path">/stats</span></div>
+    <p>Lightweight stats snapshot. No dependency checks — always fast.</p>
+    <div class="code-wrap">
+      <pre><code class="language-json">{
+  "faiss_entries": 1042,
+  "queue_depth": 3
+}</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+  </div>
+
+  <div class="api-panel" id="panel-delete">
+    <div class="endpoint-badge"><span class="method method-delete">DELETE</span><span class="path">/cache/{key}</span></div>
+    <p>Evicts a specific entry from FAISS and Redis L1. Use when a cached response is stale or incorrect.</p>
+    <div class="code-wrap">
+      <pre><code class="language-bash">curl -X DELETE http://localhost:8080/cache/a3f2c1d8e9f0b2c3</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+    <div class="code-wrap">
+      <pre><code class="language-json">// 200 OK
+{ "deleted": true, "key": "a3f2c1d8e9f0b2c3" }
+
+// 404 Not Found
+{ "deleted": false, "key": "a3f2c1d8e9f0b2c3" }</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+  </div>
+
+  <div class="api-panel" id="panel-sidecar">
+    <p>The Python sidecar runs on port <code>8001</code> (internal; not exposed to clients directly).</p>
+    <div class="endpoint-badge"><span class="method method-post">POST</span><span class="path">/embed</span></div>
+    <div class="code-wrap">
+      <pre><code class="language-json">// Request
+{ "text": "What is the return policy?" }
+
+// Response
+{
+  "embedding": [0.023, -0.147, 0.891, "...384 floats..."],
+  "model": "all-MiniLM-L6-v2",
+  "dimension": 384
+}</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+    <div class="endpoint-badge" style="margin-top:16px"><span class="method method-post">POST</span><span class="path">/embed_batch</span></div>
+    <div class="code-wrap">
+      <pre><code class="language-json">// Request (up to 256 texts)
+{ "texts": ["query one", "query two"] }
+
+// Response
+{
+  "embeddings": [[...], [...]],
+  "model": "all-MiniLM-L6-v2",
+  "dimension": 384,
+  "count": 2
+}</code></pre>
+      <button class="copy-btn" onclick="copy(this)">Copy</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════ CONFIGURATION ══════════════════════════════ -->
+<section id="configuration">
+  <h2>Configuration</h2>
+  <p>All runtime configuration is via environment variables. No config files needed.</p>
+
+  <h3>Environment Variables</h3>
+  <table class="config-table">
+    <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>REDIS_HOST</td><td>localhost</td><td>Redis server hostname</td></tr>
+      <tr><td>REDIS_PORT</td><td>6379</td><td>Redis server port</td></tr>
+      <tr><td>EMBED_URL</td><td>http://localhost:8001</td><td>Python sidecar base URL</td></tr>
+      <tr><td>EMBED_DIM</td><td>384</td><td>Embedding dimension — must match model</td></tr>
+      <tr><td>OPENAI_API_KEY</td><td><em>empty</em></td><td>OpenAI API key. Empty → stub response mode (useful for testing)</td></tr>
+      <tr><td>LLM_MODEL</td><td>gpt-4o-mini</td><td>OpenAI model name (e.g. gpt-4o, gpt-3.5-turbo)</td></tr>
+      <tr><td>HTTP_PORT</td><td>8080</td><td>Orchestrator HTTP listen port</td></tr>
+      <tr><td>FAISS_INDEX_PATH</td><td>./faiss.index</td><td>Path for FAISS binary + .meta.json sidecar</td></tr>
+      <tr><td>ENABLE_TURBO_QUANT</td><td><em>unset</em></td><td>Set to <code>1</code> to enable TurboQuantizer (7.8× compression, unbiased cosine)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Source-Code-Only Tuning</h3>
+  <table class="config-table">
+    <thead><tr><th>Parameter</th><th>Location</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Validation threshold (0.85)</td><td>src/api/HttpServer.cpp:47</td><td>Lower = more hits; higher = fewer false positives</td></tr>
+      <tr><td>Scoring weights (0.60/0.25/0.15)</td><td>src/validation/ValidationService.h</td><td>Must sum to 1.0</td></tr>
+      <tr><td>Admission min_frequency (2)</td><td>src/api/HttpServer.cpp:48</td><td>Lower = more cache entries; higher = fewer one-offs</td></tr>
+      <tr><td>Admission window (300s)</td><td>src/api/HttpServer.cpp:48</td><td>Rolling frequency window</td></tr>
+      <tr><td>FAISS NLIST/NPROBE/M_PQ</td><td>src/cache/FaissVectorStore.h</td><td>NLIST=100, NPROBE=10, M_PQ=8, NBITS=8</td></tr>
+      <tr><td>TurboQuant seeds</td><td>TurboQuantizer constructor</td><td>rotation_seed=42, qjl_seed=137 (hardcoded)</td></tr>
+      <tr><td>L1 TTL (3600s)</td><td>src/builder/CacheBuilderWorker.h</td><td>Redis key TTL in seconds</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════ QUICK START ══════════════════════════════ -->
+<section id="quick-start">
+  <h2>Quick Start</h2>
+  <p>Get LettuceCache running locally in under 5 minutes using Docker Compose.</p>
+
+  <div class="qs-steps">
+    <div class="qs-step">
+      <h3>Clone the repository</h3>
+      <div class="code-wrap"><pre><code class="language-bash">git clone git@github.com:Ciphercrypt/LettuceCache.git
+cd LettuceCache</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+    </div>
+    <div class="qs-step">
+      <h3>Set your API key</h3>
+      <div class="code-wrap"><pre><code class="language-bash">export OPENAI_API_KEY=sk-...
+# Or leave blank to use stub mode (returns "[LLM not configured] {query}")</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+    </div>
+    <div class="qs-step">
+      <h3>Start all services</h3>
+      <div class="code-wrap"><pre><code class="language-bash">docker compose up
+# Starts: Redis 7 (:6379), Python sidecar (:8001), C++ orchestrator (:8080)
+# Wait for: orchestrator | [INFO] HttpServer listening on port 8080</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+    </div>
+    <div class="qs-step">
+      <h3>Verify health</h3>
+      <div class="code-wrap"><pre><code class="language-bash">curl http://localhost:8080/health</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+      <div class="code-wrap"><pre><code class="language-json">{ "status": "ok", "redis": true, "embedding_sidecar": true, "faiss_entries": 0 }</code></pre></div>
+    </div>
+    <div class="qs-step">
+      <h3>First query — LLM called, result cached</h3>
+      <div class="code-wrap"><pre><code class="language-bash">curl -s -X POST http://localhost:8080/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"What is the capital of France?","domain":"geography"}' | jq .</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+      <div class="code-wrap"><pre><code class="language-json">{ "answer": "The capital of France is Paris.", "cache_hit": false, "latency_ms": 712 }</code></pre></div>
+    </div>
+    <div class="qs-step">
+      <h3>Same query — served from cache (37× faster)</h3>
+      <div class="code-wrap"><pre><code class="language-bash"># Send again — admission threshold met after 2nd hit, cache is populated
+curl -s -X POST http://localhost:8080/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"What is the capital of France?","domain":"geography"}' | jq .</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+      <div class="code-wrap"><pre><code class="language-json">{ "answer": "The capital of France is Paris.", "cache_hit": true, "confidence": 1.0, "latency_ms": 0 }</code></pre></div>
+    </div>
+    <div class="qs-step">
+      <h3>Enable TurboQuant for compressed storage</h3>
+      <div class="code-wrap"><pre><code class="language-bash">ENABLE_TURBO_QUANT=1 LLM_MODEL=gpt-4o-mini \
+  OPENAI_API_KEY=$OPENAI_API_KEY \
+  FAISS_INDEX_PATH=./my.faiss ./build/lettucecache</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+      <p style="font-size:13px">Reduces stored embedding size from 1536 bytes to 244 bytes (d=384) with unbiased cosine scoring.</p>
+    </div>
+  </div>
+
+  <div class="callout callout-green">
+    <div class="callout-icon">🧪</div>
+    <p><strong>Run the test suite:</strong></p>
+  </div>
+  <div class="code-wrap"><pre><code class="language-bash"># Unit tests (no external deps required)
+cmake -B build && cmake --build build --target unit_tests
+cd build && ctest --output-on-failure
+
+# Full happy-path integration test (starts stack automatically)
+bash tests/happy_path.sh
+
+# Live demo with real LLM
+export OPENAI_API_KEY=sk-...
+bash tests/live_demo.sh</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+// Init syntax highlighting
+document.addEventListener('DOMContentLoaded', () => {
+  hljs.highlightAll();
+  // Trigger visible for first section
+  document.querySelectorAll('section').forEach((s,i) => {
+    if(i===0) s.classList.add('visible');
+  });
+  setupIntersectionObserver();
+});
+
+// Intersection observer for fade-in
+function setupIntersectionObserver(){
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+  },{threshold:0.05});
+  document.querySelectorAll('section').forEach(s=>io.observe(s));
+}
+
+// Navigation
+function nav(id){
+  // Update active link
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  // Scroll to section
+  const el = document.getElementById(id);
+  if(el) el.scrollIntoView({behavior:'smooth'});
+  // Close sidebar on mobile
+  if(window.innerWidth<=768) toggleSidebar(true);
+}
+
+// Mobile sidebar
+function toggleSidebar(forceClose){
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('overlay');
+  if(forceClose || sb.classList.contains('open')){
+    sb.classList.remove('open');
+    ov.classList.remove('open');
+  } else {
+    sb.classList.add('open');
+    ov.classList.add('open');
+  }
+}
+
+// Highlight active nav on scroll
+window.addEventListener('scroll',()=>{
+  const sections = document.querySelectorAll('section');
+  const links = document.querySelectorAll('.nav-link');
+  let current = '';
+  sections.forEach(s=>{
+    const rect = s.getBoundingClientRect();
+    if(rect.top <= 120) current = s.id;
+  });
+  links.forEach(l=>{
+    l.classList.remove('active');
+    if(l.getAttribute('onclick') && l.getAttribute('onclick').includes("'"+current+"'")){
+      l.classList.add('active');
+    }
+  });
+});
+
+// API tabs
+function apiTab(id, el){
+  document.querySelectorAll('.api-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.api-panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
+}
+
+// Scoring calculator
+let ctxVal=1, domVal=1;
+function updateScore(){
+  const cos = parseFloat(document.getElementById('sl-cos').value);
+  document.getElementById('v-cos').textContent = cos.toFixed(2);
+  const score = 0.60*cos + 0.25*ctxVal + 0.15*domVal;
+  const pct = Math.min(100, score*100);
+  document.getElementById('score-num').textContent = score.toFixed(3);
+  const bar = document.getElementById('score-bar');
+  bar.style.width = pct+'%';
+  bar.style.background = score >= 0.85 ? 'var(--green)' : 'var(--red)';
+  const verdict = document.getElementById('score-verdict');
+  verdict.textContent = score >= 0.85 ? '✓ CACHE HIT' : '✗ CACHE MISS';
+  verdict.className = 'score-verdict ' + (score >= 0.85 ? 'verdict-hit' : 'verdict-miss');
+}
+function toggleCtx(){
+  ctxVal = ctxVal===1 ? 0 : 1;
+  const btn = document.getElementById('btn-ctx');
+  btn.textContent = ctxVal===1 ? 'Match (1.0)' : 'No match (0.0)';
+  btn.className = 'toggle-btn '+(ctxVal?'on':'');
+  updateScore();
+}
+function toggleDom(){
+  domVal = domVal===1 ? 0 : 1;
+  const btn = document.getElementById('btn-dom');
+  btn.textContent = domVal===1 ? 'Match (1.0)' : 'No match (0.0)';
+  btn.className = 'toggle-btn '+(domVal?'on':'');
+  updateScore();
+}
+
+// Copy to clipboard
+function copy(btn){
+  const code = btn.previousElementSibling.querySelector('code');
+  navigator.clipboard.writeText(code.textContent).then(()=>{
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = 'var(--green)';
+    setTimeout(()=>{ btn.textContent=orig; btn.style.color=''; }, 1500);
+  });
+}
+</script>
+</body>
+</html>
