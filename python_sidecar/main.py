@@ -14,7 +14,7 @@ Environment variables:
 import os
 import logging
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
@@ -31,7 +31,7 @@ log = logging.getLogger("embedding_sidecar")
 MODEL_NAME: str = os.environ.get("MODEL_NAME", "all-MiniLM-L6-v2")
 
 # Module-level model reference populated at startup
-_model: SentenceTransformer | None = None
+_model: Optional[SentenceTransformer] = None
 
 
 @asynccontextmanager
