@@ -110,3 +110,10 @@ All runtime config is environment variables. Tuning parameters that require sour
 
 **IVectorStore** (`src/cache/IVectorStore.h`): Abstract interface with `search/add/remove/size/persist`.
 `FaissVectorStore` implements it. Swap for `MilvusVectorStore` (Phase 3) without touching callers.
+
+### Configuration (env vars added in sprint)
+
+| Var | Default | Notes |
+|-----|---------|-------|
+| `ENABLE_TURBO_QUANT` | *(unset)* | Set to `1` to enable TurboQuantizer for encoding + scoring |
+| `LLM_MODEL` | `gpt-4o-mini` | OpenAI model name passed to `OpenAIAdapter` |
