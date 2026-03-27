@@ -30,6 +30,8 @@ HttpServer::HttpServer(const std::string& redis_host,
     : http_port_(http_port)
 {
     redis_      = std::make_unique<cache::RedisCacheAdapter>(redis_host, redis_port);
+    // TurboQuantizer enabled when ENABLE_TURBO_QUANT=1 env var is set.
+    // Provides unbiased inner-product estimation + 7.8× embedding compression.
     if (std::getenv("ENABLE_TURBO_QUANT") &&
         std::string(std::getenv("ENABLE_TURBO_QUANT")) == "1")
     {
@@ -41,7 +43,10 @@ HttpServer::HttpServer(const std::string& redis_host,
     faiss_      = std::make_unique<cache::FaissVectorStore>(embed_dim, faiss_path,
                                                              tq_.get());
     embedder_   = std::make_unique<embedding::EmbeddingClient>(embed_url);
-    llm_        = std::make_unique<llm::OpenAIAdapter>(openai_key);
+    const char* model_env = std::getenv("LLM_MODEL");
+    std::string llm_model = model_env ? model_env : "gpt-4o-mini";
+    llm_        = std::make_unique<llm::OpenAIAdapter>(openai_key, llm_model);
+    spdlog::info("  LLM model: {}", llm_model);
     validator_  = std::make_unique<validation::ValidationService>(0.85, tq_.get());
     admission_  = std::make_unique<builder::AdmissionController>(2, 300, 32768);
     templatizer_ = std::make_unique<builder::Templatizer>();
