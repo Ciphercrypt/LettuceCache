@@ -100,3 +100,13 @@ All runtime config is environment variables. Tuning parameters that require sour
 - **Redis Streams unused**: `xadd`/`xread` are implemented in `RedisCacheAdapter` but `CacheBuilderWorker` uses an in-process `std::queue` instead. *(still open)*
 - **FAISS read/write uses exclusive mutex**: ~~FIXED~~ — `FaissVectorStore` now uses `std::shared_mutex`; `search()` holds a shared lock (concurrent reads allowed), `add()`/`remove()`/`persist()` hold exclusive locks.
 - **Context ordering affects hash**: ~~FIXED~~ — `ContextBuilder` sorts context turns before SHA-256, so identical turns in any order produce the same `signature_hash`.
+
+### New components (added in TurboQuant integration sprint)
+
+**TurboQuantizer** (`src/quantization/`): Data-oblivious vector quantizer (arXiv:2504.19874).
+- Enable: `ENABLE_TURBO_QUANT=1`; disable (default): omit env var
+- Code layout: `[float32 norm][padded_dim MSE bits][(dim) QJL sign bits]` — d=384 → 244 bytes vs 1536 FP32
+- Seeds: rotation seed=42, QJL seed=137 (constructor args)
+
+**IVectorStore** (`src/cache/IVectorStore.h`): Abstract interface with `search/add/remove/size/persist`.
+`FaissVectorStore` implements it. Swap for `MilvusVectorStore` (Phase 3) without touching callers.
