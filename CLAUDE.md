@@ -117,3 +117,11 @@ All runtime config is environment variables. Tuning parameters that require sour
 |-----|---------|-------|
 | `ENABLE_TURBO_QUANT` | *(unset)* | Set to `1` to enable TurboQuantizer for encoding + scoring |
 | `LLM_MODEL` | `gpt-4o-mini` | OpenAI model name passed to `OpenAIAdapter` |
+
+### Metadata persistence detail
+
+`FaissVectorStore::persist()` writes two files:
+- `<FAISS_INDEX_PATH>` — raw FAISS binary (via `faiss::write_index`)
+- `<FAISS_INDEX_PATH>.meta.json` — JSON array of `CacheEntry` objects including embeddings and optional `tq_codes_hex`
+
+On startup, both are loaded. If the `.meta.json` sidecar is missing, the FAISS binary is still loaded (index is usable for training) but all metadata lookups return empty until rebuilt from traffic.
