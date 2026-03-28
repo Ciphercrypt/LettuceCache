@@ -328,10 +328,10 @@ strong{color:var(--text);font-weight:600}
 }
 
 /* ── Logo ── */
-.sidebar-svg-logo{width:40px;height:40px;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(16,185,129,.35))}
+.sidebar-svg-logo{width:33px;height:40px;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(16,185,129,.35))}
 .sidebar-svg-logo svg{width:100%;height:100%}
 .hero-logo-wrap{margin-bottom:28px}
-.hero-logo{width:96px;height:96px;filter:drop-shadow(0 0 24px rgba(16,185,129,.45)) drop-shadow(0 0 8px rgba(16,185,129,.25))}
+.hero-logo{width:80px;height:96px;filter:drop-shadow(0 0 24px rgba(16,185,129,.45)) drop-shadow(0 0 8px rgba(16,185,129,.25))}
 .hero-logo svg{width:100%;height:100%}
 </style>
 </head>
@@ -347,96 +347,143 @@ strong{color:var(--text);font-weight:600}
 <aside id="sidebar">
   <div class="sidebar-logo">
     <div style="display:flex;align-items:center;gap:10px">
-      <div class="sidebar-svg-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <div class="sidebar-svg-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">
   <defs>
-    <radialGradient id="bgG" cx="45%" cy="38%" r="65%">
-      <stop offset="0%" stop-color="#0c2e17"/>
-      <stop offset="100%" stop-color="#040e08"/>
-    </radialGradient>
-    <radialGradient id="l1G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#1c6b32"/>
-      <stop offset="100%" stop-color="#0d3a1b"/>
-    </radialGradient>
-    <radialGradient id="l2G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#28924a"/>
-      <stop offset="100%" stop-color="#145228"/>
-    </radialGradient>
-    <radialGradient id="l3G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#3ab85e"/>
-      <stop offset="100%" stop-color="#1e7a38"/>
-    </radialGradient>
-    <radialGradient id="l4G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#5dd87c"/>
-      <stop offset="100%" stop-color="#2aa04e"/>
-    </radialGradient>
+    <!-- leaf gradients: outer leaves darker, inner lighter -->
+    <linearGradient id="lf1" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#0d4a1f"/>
+      <stop offset="100%" stop-color="#1d7a38"/>
+    </linearGradient>
+    <linearGradient id="lf2" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#156030"/>
+      <stop offset="100%" stop-color="#29964a"/>
+    </linearGradient>
+    <linearGradient id="lf3" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#1c7a3c"/>
+      <stop offset="100%" stop-color="#3ab85e"/>
+    </linearGradient>
+    <linearGradient id="lf4" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#25954a"/>
+      <stop offset="100%" stop-color="#55d47a"/>
+    </linearGradient>
+    <linearGradient id="lf5" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#2fb05a"/>
+      <stop offset="100%" stop-color="#7de89a"/>
+    </linearGradient>
+    <!-- stem -->
+    <linearGradient id="stem" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a3d977"/>
+      <stop offset="100%" stop-color="#6ab04c"/>
+    </linearGradient>
   </defs>
 
-  <!-- Background disc -->
-  <circle cx="50" cy="50" r="49" fill="url(#bgG)"/>
-  <!-- Subtle rim -->
-  <circle cx="50" cy="50" r="48.5" fill="none" stroke="#1a5c2a" stroke-width="0.8" opacity="0.5"/>
+  <!--
+    Head of romaine-style lettuce viewed from slight front-above.
+    Five overlapping leaf "fans" fanning from a shared base, each rotated
+    around the base point (50, 100). The outermost pair is drawn first
+    (behind) and innermost last (in front). Each leaf is a rounded
+    teardrop with a wavy/lobed upper edge.
+  -->
 
-  <!-- Layer 1 — 6 large outer leaves, darkest -->
-  <g fill="url(#l1G)">
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(0,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(60,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(120,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(180,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(240,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(300,50,50)"/>
-  </g>
-  <!-- Veins layer 1 -->
-  <g stroke="#0d3d1a" stroke-width="0.7" fill="none" opacity="0.6">
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(0,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(60,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(120,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(180,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(240,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(300,50,50)"/>
-  </g>
+  <!-- Stem/base -->
+  <path d="M44,100 C44,105 44,110 44,115 C44,117 47,118 50,118 C53,118 56,117 56,115 C56,110 56,105 56,100Z"
+        fill="url(#stem)"/>
 
-  <!-- Layer 2 — 6 leaves rotated 30°, medium-dark -->
-  <g fill="url(#l2G)">
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(30,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(90,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(150,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(210,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(270,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(330,50,50)"/>
-  </g>
-  <!-- Veins layer 2 -->
-  <g stroke="#165a28" stroke-width="0.6" fill="none" opacity="0.5">
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(30,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(90,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(150,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(210,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(270,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(330,50,50)"/>
-  </g>
+  <!-- ── Leaf 1 – far left (behind everything) ── -->
+  <path transform="rotate(-38,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf1)"/>
+  <!-- vein 1 -->
+  <path transform="rotate(-38,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#0a3318" stroke-width="1.2" fill="none" opacity="0.55"/>
 
-  <!-- Layer 3 — 5 inner leaves, brighter -->
-  <g fill="url(#l3G)">
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(18,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(90,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(162,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(234,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(306,50,50)"/>
-  </g>
+  <!-- ── Leaf 2 – second from left ── -->
+  <path transform="rotate(-19,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf2)"/>
+  <path transform="rotate(-19,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#0f4020" stroke-width="1.2" fill="none" opacity="0.5"/>
+  <!-- side veins -->
+  <path transform="rotate(-19,50,100)"
+        d="M50,65 C44,55 34,48 28,42 M50,50 C56,40 66,33 72,28"
+        stroke="#0f4020" stroke-width="0.8" fill="none" opacity="0.35"/>
 
-  <!-- Layer 4 — 4 innermost leaves, lightest green -->
-  <g fill="url(#l4G)">
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(0,50,50)"/>
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(90,50,50)"/>
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(180,50,50)"/>
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(270,50,50)"/>
-  </g>
+  <!-- ── Leaf 3 – centre (in front of outer pair, behind inner) ── -->
+  <path d="M50,100
+           C44,94 34,84 27,70
+           C21,58 19,44 21,32
+           C23,20 29,11 36,7
+           C40,4 45,3 50,3
+           C55,3 60,4 64,7
+           C71,11 77,20 79,32
+           C81,44 79,58 73,70
+           C66,84 56,94 50,100Z"
+        fill="url(#lf3)"/>
+  <!-- centre main vein -->
+  <path d="M50,98 C50,70 50,38 50,5"
+        stroke="#145528" stroke-width="1.3" fill="none" opacity="0.55"/>
+  <!-- side veins centre leaf -->
+  <path d="M50,70 C43,60 33,52 26,46
+           M50,55 C57,45 67,37 74,31
+           M50,40 C44,32 37,26 32,20
+           M50,40 C56,32 63,26 68,20"
+        stroke="#145528" stroke-width="0.75" fill="none" opacity="0.35"/>
 
-  <!-- Centre bud — concentric circles, very light -->
-  <circle cx="50" cy="50" r="9"   fill="#4ade80"/>
-  <circle cx="50" cy="50" r="6.5" fill="#6ee88a"/>
-  <circle cx="50" cy="50" r="4.5" fill="#86efac"/>
-  <circle cx="50" cy="50" r="2.8" fill="#a7f3bc"/>
-  <circle cx="50" cy="50" r="1.4" fill="#d1fae5"/>
+  <!-- ── Leaf 4 – second from right ── -->
+  <path transform="rotate(19,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf4)"/>
+  <path transform="rotate(19,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#196040" stroke-width="1.2" fill="none" opacity="0.5"/>
+  <path transform="rotate(19,50,100)"
+        d="M50,65 C44,55 34,48 28,42 M50,50 C56,40 66,33 72,28"
+        stroke="#196040" stroke-width="0.8" fill="none" opacity="0.35"/>
+
+  <!-- ── Leaf 5 – far right (frontmost) ── -->
+  <path transform="rotate(38,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf5)"/>
+  <path transform="rotate(38,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#1e7a46" stroke-width="1.2" fill="none" opacity="0.5"/>
+
+  <!-- Highlight on centre leaf tip -->
+  <ellipse cx="50" cy="14" rx="8" ry="5" fill="white" opacity="0.08"/>
 </svg></div>
       <div>
         <div class="logo-text">LettuceCache</div>
@@ -477,96 +524,143 @@ strong{color:var(--text);font-weight:600}
 <!-- ══════════════════════════════ HOME ══════════════════════════════ -->
 <section id="home">
   <div class="hero-logo-wrap">
-    <div class="hero-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <div class="hero-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">
   <defs>
-    <radialGradient id="bgG" cx="45%" cy="38%" r="65%">
-      <stop offset="0%" stop-color="#0c2e17"/>
-      <stop offset="100%" stop-color="#040e08"/>
-    </radialGradient>
-    <radialGradient id="l1G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#1c6b32"/>
-      <stop offset="100%" stop-color="#0d3a1b"/>
-    </radialGradient>
-    <radialGradient id="l2G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#28924a"/>
-      <stop offset="100%" stop-color="#145228"/>
-    </radialGradient>
-    <radialGradient id="l3G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#3ab85e"/>
-      <stop offset="100%" stop-color="#1e7a38"/>
-    </radialGradient>
-    <radialGradient id="l4G" cx="75%" cy="50%" r="60%">
-      <stop offset="0%" stop-color="#5dd87c"/>
-      <stop offset="100%" stop-color="#2aa04e"/>
-    </radialGradient>
+    <!-- leaf gradients: outer leaves darker, inner lighter -->
+    <linearGradient id="lf1" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#0d4a1f"/>
+      <stop offset="100%" stop-color="#1d7a38"/>
+    </linearGradient>
+    <linearGradient id="lf2" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#156030"/>
+      <stop offset="100%" stop-color="#29964a"/>
+    </linearGradient>
+    <linearGradient id="lf3" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#1c7a3c"/>
+      <stop offset="100%" stop-color="#3ab85e"/>
+    </linearGradient>
+    <linearGradient id="lf4" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#25954a"/>
+      <stop offset="100%" stop-color="#55d47a"/>
+    </linearGradient>
+    <linearGradient id="lf5" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#2fb05a"/>
+      <stop offset="100%" stop-color="#7de89a"/>
+    </linearGradient>
+    <!-- stem -->
+    <linearGradient id="stem" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a3d977"/>
+      <stop offset="100%" stop-color="#6ab04c"/>
+    </linearGradient>
   </defs>
 
-  <!-- Background disc -->
-  <circle cx="50" cy="50" r="49" fill="url(#bgG)"/>
-  <!-- Subtle rim -->
-  <circle cx="50" cy="50" r="48.5" fill="none" stroke="#1a5c2a" stroke-width="0.8" opacity="0.5"/>
+  <!--
+    Head of romaine-style lettuce viewed from slight front-above.
+    Five overlapping leaf "fans" fanning from a shared base, each rotated
+    around the base point (50, 100). The outermost pair is drawn first
+    (behind) and innermost last (in front). Each leaf is a rounded
+    teardrop with a wavy/lobed upper edge.
+  -->
 
-  <!-- Layer 1 — 6 large outer leaves, darkest -->
-  <g fill="url(#l1G)">
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(0,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(60,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(120,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(180,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(240,50,50)"/>
-    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(300,50,50)"/>
-  </g>
-  <!-- Veins layer 1 -->
-  <g stroke="#0d3d1a" stroke-width="0.7" fill="none" opacity="0.6">
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(0,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(60,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(120,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(180,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(240,50,50)"/>
-    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(300,50,50)"/>
-  </g>
+  <!-- Stem/base -->
+  <path d="M44,100 C44,105 44,110 44,115 C44,117 47,118 50,118 C53,118 56,117 56,115 C56,110 56,105 56,100Z"
+        fill="url(#stem)"/>
 
-  <!-- Layer 2 — 6 leaves rotated 30°, medium-dark -->
-  <g fill="url(#l2G)">
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(30,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(90,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(150,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(210,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(270,50,50)"/>
-    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(330,50,50)"/>
-  </g>
-  <!-- Veins layer 2 -->
-  <g stroke="#165a28" stroke-width="0.6" fill="none" opacity="0.5">
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(30,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(90,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(150,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(210,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(270,50,50)"/>
-    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(330,50,50)"/>
-  </g>
+  <!-- ── Leaf 1 – far left (behind everything) ── -->
+  <path transform="rotate(-38,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf1)"/>
+  <!-- vein 1 -->
+  <path transform="rotate(-38,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#0a3318" stroke-width="1.2" fill="none" opacity="0.55"/>
 
-  <!-- Layer 3 — 5 inner leaves, brighter -->
-  <g fill="url(#l3G)">
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(18,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(90,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(162,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(234,50,50)"/>
-    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(306,50,50)"/>
-  </g>
+  <!-- ── Leaf 2 – second from left ── -->
+  <path transform="rotate(-19,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf2)"/>
+  <path transform="rotate(-19,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#0f4020" stroke-width="1.2" fill="none" opacity="0.5"/>
+  <!-- side veins -->
+  <path transform="rotate(-19,50,100)"
+        d="M50,65 C44,55 34,48 28,42 M50,50 C56,40 66,33 72,28"
+        stroke="#0f4020" stroke-width="0.8" fill="none" opacity="0.35"/>
 
-  <!-- Layer 4 — 4 innermost leaves, lightest green -->
-  <g fill="url(#l4G)">
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(0,50,50)"/>
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(90,50,50)"/>
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(180,50,50)"/>
-    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(270,50,50)"/>
-  </g>
+  <!-- ── Leaf 3 – centre (in front of outer pair, behind inner) ── -->
+  <path d="M50,100
+           C44,94 34,84 27,70
+           C21,58 19,44 21,32
+           C23,20 29,11 36,7
+           C40,4 45,3 50,3
+           C55,3 60,4 64,7
+           C71,11 77,20 79,32
+           C81,44 79,58 73,70
+           C66,84 56,94 50,100Z"
+        fill="url(#lf3)"/>
+  <!-- centre main vein -->
+  <path d="M50,98 C50,70 50,38 50,5"
+        stroke="#145528" stroke-width="1.3" fill="none" opacity="0.55"/>
+  <!-- side veins centre leaf -->
+  <path d="M50,70 C43,60 33,52 26,46
+           M50,55 C57,45 67,37 74,31
+           M50,40 C44,32 37,26 32,20
+           M50,40 C56,32 63,26 68,20"
+        stroke="#145528" stroke-width="0.75" fill="none" opacity="0.35"/>
 
-  <!-- Centre bud — concentric circles, very light -->
-  <circle cx="50" cy="50" r="9"   fill="#4ade80"/>
-  <circle cx="50" cy="50" r="6.5" fill="#6ee88a"/>
-  <circle cx="50" cy="50" r="4.5" fill="#86efac"/>
-  <circle cx="50" cy="50" r="2.8" fill="#a7f3bc"/>
-  <circle cx="50" cy="50" r="1.4" fill="#d1fae5"/>
+  <!-- ── Leaf 4 – second from right ── -->
+  <path transform="rotate(19,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf4)"/>
+  <path transform="rotate(19,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#196040" stroke-width="1.2" fill="none" opacity="0.5"/>
+  <path transform="rotate(19,50,100)"
+        d="M50,65 C44,55 34,48 28,42 M50,50 C56,40 66,33 72,28"
+        stroke="#196040" stroke-width="0.8" fill="none" opacity="0.35"/>
+
+  <!-- ── Leaf 5 – far right (frontmost) ── -->
+  <path transform="rotate(38,50,100)"
+        d="M50,100
+           C44,94 35,85 28,72
+           C22,60 20,46 22,34
+           C24,22 30,13 36,8
+           C40,5 45,4 50,4
+           C55,4 60,5 64,8
+           C70,13 76,22 78,34
+           C80,46 78,60 72,72
+           C65,85 56,94 50,100Z"
+        fill="url(#lf5)"/>
+  <path transform="rotate(38,50,100)"
+        d="M50,98 C50,72 50,40 50,6"
+        stroke="#1e7a46" stroke-width="1.2" fill="none" opacity="0.5"/>
+
+  <!-- Highlight on centre leaf tip -->
+  <ellipse cx="50" cy="14" rx="8" ry="5" fill="white" opacity="0.08"/>
 </svg></div>
   </div>
   <h1><span class="hero-gradient">LettuceCache</span></h1>
