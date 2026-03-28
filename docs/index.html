@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LettuceCache — Context-Aware Semantic Cache for LLMs</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+<meta property="og:image" content="assets/logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -324,6 +326,13 @@ strong{color:var(--text);font-weight:600}
   .tq-ip-row{font-size:12px}
   .flow-row{min-width:600px}
 }
+
+/* ── Logo ── */
+.sidebar-svg-logo{width:40px;height:40px;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(16,185,129,.35))}
+.sidebar-svg-logo svg{width:100%;height:100%}
+.hero-logo-wrap{margin-bottom:28px}
+.hero-logo{width:96px;height:96px;filter:drop-shadow(0 0 24px rgba(16,185,129,.45)) drop-shadow(0 0 8px rgba(16,185,129,.25))}
+.hero-logo svg{width:100%;height:100%}
 </style>
 </head>
 <body>
@@ -337,8 +346,103 @@ strong{color:var(--text);font-weight:600}
 
 <aside id="sidebar">
   <div class="sidebar-logo">
-    <div class="logo-text">🥬 LettuceCache</div>
-    <div class="logo-sub">Context-aware semantic cache for LLMs</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="sidebar-svg-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bgG" cx="45%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#0c2e17"/>
+      <stop offset="100%" stop-color="#040e08"/>
+    </radialGradient>
+    <radialGradient id="l1G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#1c6b32"/>
+      <stop offset="100%" stop-color="#0d3a1b"/>
+    </radialGradient>
+    <radialGradient id="l2G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#28924a"/>
+      <stop offset="100%" stop-color="#145228"/>
+    </radialGradient>
+    <radialGradient id="l3G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#3ab85e"/>
+      <stop offset="100%" stop-color="#1e7a38"/>
+    </radialGradient>
+    <radialGradient id="l4G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#5dd87c"/>
+      <stop offset="100%" stop-color="#2aa04e"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background disc -->
+  <circle cx="50" cy="50" r="49" fill="url(#bgG)"/>
+  <!-- Subtle rim -->
+  <circle cx="50" cy="50" r="48.5" fill="none" stroke="#1a5c2a" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- Layer 1 — 6 large outer leaves, darkest -->
+  <g fill="url(#l1G)">
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(0,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(60,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(120,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(180,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(240,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(300,50,50)"/>
+  </g>
+  <!-- Veins layer 1 -->
+  <g stroke="#0d3d1a" stroke-width="0.7" fill="none" opacity="0.6">
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(0,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(60,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(120,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(180,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(240,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(300,50,50)"/>
+  </g>
+
+  <!-- Layer 2 — 6 leaves rotated 30°, medium-dark -->
+  <g fill="url(#l2G)">
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(30,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(90,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(150,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(210,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(270,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(330,50,50)"/>
+  </g>
+  <!-- Veins layer 2 -->
+  <g stroke="#165a28" stroke-width="0.6" fill="none" opacity="0.5">
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(30,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(90,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(150,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(210,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(270,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(330,50,50)"/>
+  </g>
+
+  <!-- Layer 3 — 5 inner leaves, brighter -->
+  <g fill="url(#l3G)">
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(18,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(90,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(162,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(234,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(306,50,50)"/>
+  </g>
+
+  <!-- Layer 4 — 4 innermost leaves, lightest green -->
+  <g fill="url(#l4G)">
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(0,50,50)"/>
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(90,50,50)"/>
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(180,50,50)"/>
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(270,50,50)"/>
+  </g>
+
+  <!-- Centre bud — concentric circles, very light -->
+  <circle cx="50" cy="50" r="9"   fill="#4ade80"/>
+  <circle cx="50" cy="50" r="6.5" fill="#6ee88a"/>
+  <circle cx="50" cy="50" r="4.5" fill="#86efac"/>
+  <circle cx="50" cy="50" r="2.8" fill="#a7f3bc"/>
+  <circle cx="50" cy="50" r="1.4" fill="#d1fae5"/>
+</svg></div>
+      <div>
+        <div class="logo-text">LettuceCache</div>
+        <div class="logo-sub">Semantic cache for LLMs</div>
+      </div>
+    </div>
   </div>
   <nav>
     <div class="nav-section">
@@ -372,6 +476,99 @@ strong{color:var(--text);font-weight:600}
 
 <!-- ══════════════════════════════ HOME ══════════════════════════════ -->
 <section id="home">
+  <div class="hero-logo-wrap">
+    <div class="hero-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bgG" cx="45%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#0c2e17"/>
+      <stop offset="100%" stop-color="#040e08"/>
+    </radialGradient>
+    <radialGradient id="l1G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#1c6b32"/>
+      <stop offset="100%" stop-color="#0d3a1b"/>
+    </radialGradient>
+    <radialGradient id="l2G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#28924a"/>
+      <stop offset="100%" stop-color="#145228"/>
+    </radialGradient>
+    <radialGradient id="l3G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#3ab85e"/>
+      <stop offset="100%" stop-color="#1e7a38"/>
+    </radialGradient>
+    <radialGradient id="l4G" cx="75%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#5dd87c"/>
+      <stop offset="100%" stop-color="#2aa04e"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background disc -->
+  <circle cx="50" cy="50" r="49" fill="url(#bgG)"/>
+  <!-- Subtle rim -->
+  <circle cx="50" cy="50" r="48.5" fill="none" stroke="#1a5c2a" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- Layer 1 — 6 large outer leaves, darkest -->
+  <g fill="url(#l1G)">
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(0,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(60,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(120,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(180,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(240,50,50)"/>
+    <path d="M50,50 C57,33 80,31 90,50 C80,69 57,67 50,50Z" transform="rotate(300,50,50)"/>
+  </g>
+  <!-- Veins layer 1 -->
+  <g stroke="#0d3d1a" stroke-width="0.7" fill="none" opacity="0.6">
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(0,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(60,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(120,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(180,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(240,50,50)"/>
+    <line x1="51" y1="50" x2="89" y2="50" transform="rotate(300,50,50)"/>
+  </g>
+
+  <!-- Layer 2 — 6 leaves rotated 30°, medium-dark -->
+  <g fill="url(#l2G)">
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(30,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(90,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(150,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(210,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(270,50,50)"/>
+    <path d="M50,50 C56,36 77,34 85,50 C77,66 56,64 50,50Z" transform="rotate(330,50,50)"/>
+  </g>
+  <!-- Veins layer 2 -->
+  <g stroke="#165a28" stroke-width="0.6" fill="none" opacity="0.5">
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(30,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(90,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(150,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(210,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(270,50,50)"/>
+    <line x1="51" y1="50" x2="84" y2="50" transform="rotate(330,50,50)"/>
+  </g>
+
+  <!-- Layer 3 — 5 inner leaves, brighter -->
+  <g fill="url(#l3G)">
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(18,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(90,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(162,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(234,50,50)"/>
+    <path d="M50,50 C54,39 72,38 78,50 C72,62 54,61 50,50Z" transform="rotate(306,50,50)"/>
+  </g>
+
+  <!-- Layer 4 — 4 innermost leaves, lightest green -->
+  <g fill="url(#l4G)">
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(0,50,50)"/>
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(90,50,50)"/>
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(180,50,50)"/>
+    <path d="M50,50 C53,43 65,42 70,50 C65,58 53,57 50,50Z" transform="rotate(270,50,50)"/>
+  </g>
+
+  <!-- Centre bud — concentric circles, very light -->
+  <circle cx="50" cy="50" r="9"   fill="#4ade80"/>
+  <circle cx="50" cy="50" r="6.5" fill="#6ee88a"/>
+  <circle cx="50" cy="50" r="4.5" fill="#86efac"/>
+  <circle cx="50" cy="50" r="2.8" fill="#a7f3bc"/>
+  <circle cx="50" cy="50" r="1.4" fill="#d1fae5"/>
+</svg></div>
+  </div>
   <h1><span class="hero-gradient">LettuceCache</span></h1>
   <p class="hero-sub">Context-aware semantic cache for LLMs. Stops redundant API calls without false hits — because the same question means different things in different conversations.</p>
   <div class="metrics">
