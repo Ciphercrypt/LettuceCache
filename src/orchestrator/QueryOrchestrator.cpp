@@ -13,9 +13,10 @@ QueryOrchestrator::QueryOrchestrator(
     embedding::EmbeddingClient& embed_client,
     llm::LLMAdapter& llm,
     validation::ValidationService& validator,
-    builder::CacheBuilderWorker& builder)
+    builder::CacheBuilderWorker& builder,
+    builder::IntelligentAdmissionPolicy& policy)
     : redis_(redis), faiss_(faiss), embed_client_(embed_client),
-      llm_(llm), validator_(validator), builder_(builder) {}
+      llm_(llm), validator_(validator), builder_(builder), policy_(policy) {}
 
 QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
     auto start = std::chrono::steady_clock::now();
@@ -38,6 +39,7 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
     auto l1_result = redis_.get(l1_key);
     if (l1_result.has_value()) {
         long long ms = elapsed();
+        policy_.recordCacheHit(ctx.domain);   // feed domain hit rate for adaptive threshold
         spdlog::info("L1 hit correlation_id={} latency_ms={}", req.correlation_id, ms);
         return QueryResponse{l1_result.value(), true, 1.0, l1_key, ms};
     }
@@ -80,6 +82,7 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
 
             // Backfill L1 with the rendered (slot-filled) response
             redis_.set(l1_key, rendered, L1_TTL_SECONDS);
+            policy_.recordCacheHit(ctx.domain);   // adaptive threshold feedback
             long long ms = elapsed();
             spdlog::info("L2 hit id={} score={:.3f} latency_ms={} correlation_id={}",
                          candidate.id, s, ms, req.correlation_id);

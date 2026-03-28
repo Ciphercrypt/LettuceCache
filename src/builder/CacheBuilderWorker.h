@@ -9,6 +9,7 @@
 #include "../cache/RedisCacheAdapter.h"
 #include "../cache/FaissVectorStore.h"
 #include "AdmissionController.h"
+#include "IntelligentAdmissionPolicy.h"
 #include "ResponseQualityFilter.h"
 #include "Templatizer.h"
 
@@ -30,6 +31,7 @@ public:
         cache::RedisCacheAdapter& redis,
         cache::FaissVectorStore& faiss,
         AdmissionController& admission,
+        IntelligentAdmissionPolicy& policy,
         ResponseQualityFilter& quality_filter,
         Templatizer& templatizer
     );
@@ -44,11 +46,12 @@ public:
     size_t queueDepth() const;
 
 private:
-    cache::RedisCacheAdapter& redis_;
-    cache::FaissVectorStore& faiss_;
-    AdmissionController& admission_;
-    ResponseQualityFilter& quality_filter_;
-    Templatizer& templatizer_;
+    cache::RedisCacheAdapter&     redis_;
+    cache::FaissVectorStore&     faiss_;
+    AdmissionController&         admission_;       // frequency tracking only
+    IntelligentAdmissionPolicy&  policy_;          // CVF decision
+    ResponseQualityFilter&       quality_filter_;  // pre-filter (hard rejects)
+    Templatizer&                 templatizer_;
 
     std::queue<CacheEntryRequest> queue_;
     mutable std::mutex mutex_;

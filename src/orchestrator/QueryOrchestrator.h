@@ -7,6 +7,7 @@
 #include "../llm/LLMAdapter.h"
 #include "../validation/ValidationService.h"
 #include "../builder/CacheBuilderWorker.h"
+#include "../builder/IntelligentAdmissionPolicy.h"
 #include "ContextBuilder.h"
 
 namespace lettucecache::orchestrator {
@@ -36,18 +37,20 @@ public:
         embedding::EmbeddingClient& embed_client,
         llm::LLMAdapter& llm,
         validation::ValidationService& validator,
-        builder::CacheBuilderWorker& builder
+        builder::CacheBuilderWorker& builder,
+        builder::IntelligentAdmissionPolicy& policy
     );
 
     QueryResponse process(const QueryRequest& req);
 
 private:
-    cache::RedisCacheAdapter& redis_;
-    cache::FaissVectorStore& faiss_;
-    embedding::EmbeddingClient& embed_client_;
-    llm::LLMAdapter& llm_;
-    validation::ValidationService& validator_;
-    builder::CacheBuilderWorker& builder_;
+    cache::RedisCacheAdapter&           redis_;
+    cache::FaissVectorStore&            faiss_;
+    embedding::EmbeddingClient&         embed_client_;
+    llm::LLMAdapter&                    llm_;
+    validation::ValidationService&      validator_;
+    builder::CacheBuilderWorker&        builder_;
+    builder::IntelligentAdmissionPolicy& policy_;
 
     static constexpr double VALIDATION_THRESHOLD = 0.85;
     static constexpr int L1_TTL_SECONDS          = 3600;

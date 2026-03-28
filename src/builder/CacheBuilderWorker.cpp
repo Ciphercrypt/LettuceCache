@@ -28,11 +28,12 @@ CacheBuilderWorker::CacheBuilderWorker(
     cache::RedisCacheAdapter& redis,
     cache::FaissVectorStore& faiss,
     AdmissionController& admission,
+    IntelligentAdmissionPolicy& policy,
     ResponseQualityFilter& quality_filter,
     Templatizer& templatizer)
     : redis_(redis), faiss_(faiss),
-      admission_(admission), quality_filter_(quality_filter),
-      templatizer_(templatizer) {}
+      admission_(admission), policy_(policy),
+      quality_filter_(quality_filter), templatizer_(templatizer) {}
 
 CacheBuilderWorker::~CacheBuilderWorker() {
     stop();
@@ -86,28 +87,41 @@ void CacheBuilderWorker::run() {
 }
 
 void CacheBuilderWorker::processEntry(const CacheEntryRequest& req) {
-    // 1. Record query frequency regardless
+    // ── Stage 1: record request for frequency & domain tracking ───────────
     admission_.recordQuery(req.signature_hash);
+    policy_.recordRequest(req.signature_hash, req.domain);
 
-    // 2. Admission gate (frequency + size)
+    // ── Stage 2: hard size gate (fast, no computation) ────────────────────
     if (!admission_.shouldAdmit(req.signature_hash, req.llm_response)) {
-        spdlog::debug("CacheBuilder: admission rejected for sig={}", req.signature_hash);
+        spdlog::debug("CacheBuilder: size/cold rejected sig={}", req.signature_hash);
         return;
     }
 
-    // 3. Response quality filter — skip conversational, session-bound,
-    //    time-sensitive, or low-information responses
+    // ── Stage 3: quality pre-filter (hard rejects — no need for CVF) ──────
+    // Conversational, session-bound, refusals, and AI-identity responses are
+    // rejected here before the more expensive CVF computation.
     auto quality = quality_filter_.evaluate(req.llm_response, req.query);
     if (!quality.should_cache) {
-        spdlog::info("CacheBuilder: quality rejected sig={} score={:.2f} reason={}",
+        spdlog::info("CacheBuilder: quality rejected sig={} score={:.2f} [{}]",
                      req.signature_hash, quality.score, quality.reason);
         return;
     }
-    spdlog::debug("CacheBuilder: quality accepted sig={} score={:.2f} ({})",
-                  req.signature_hash, quality.score, quality.reason);
 
     if (req.embedding.empty()) {
-        spdlog::warn("CacheBuilder: empty embedding for sig={}, skipping", req.signature_hash);
+        spdlog::warn("CacheBuilder: empty embedding sig={}, skipping", req.signature_hash);
+        return;
+    }
+
+    // ── Stage 4: Intelligent Admission — multi-signal Cache Value Function ─
+    // CVF = 0.30×frequency + 0.25×cost + 0.25×quality + 0.20×MMR_novelty
+    // Adaptive per-domain threshold based on observed hit rates.
+    auto decision = policy_.evaluate(
+        req.signature_hash, req.llm_response, req.domain,
+        req.embedding, quality.score);
+
+    if (!decision.should_admit) {
+        spdlog::info("CacheBuilder: CVF rejected sig={} value={:.3f} [{}]",
+                     req.signature_hash, decision.value, decision.reason);
         return;
     }
 
