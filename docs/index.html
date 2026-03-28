@@ -3,21 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LettuceCache — Context-Aware Semantic Cache for LLMs</title>
+<title>LettuceCache - Context-Aware Semantic Cache for LLMs</title>
 <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
 <meta property="og:image" content="assets/logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js">
-function ddToggle(id, btn) {
-  const panel = document.getElementById('dd-' + id);
-  const isOpen = panel.classList.contains('open');
-  panel.classList.toggle('open', !isOpen);
-  btn.classList.toggle('open', !isOpen);
-}
-
-</script>
 <style>
 :root{
   --bg:#080d1a;--bg2:#0d1526;--bg3:#111c30;--border:#1e2d45;
@@ -460,7 +451,7 @@ strong{color:var(--text);font-weight:600}
 </svg></div>
   </div>
   <h1><span class="hero-gradient">LettuceCache</span></h1>
-  <p class="hero-sub">Context-aware semantic cache for LLMs. Stops redundant API calls without false hits — because the same question means different things in different conversations.</p>
+  <p class="hero-sub">Context-aware semantic cache for LLMs. Stops redundant API calls without false hits - because the same question means different things in different conversations.</p>
   <div class="metrics">
     <span class="metric-pill">⚡ &lt;1ms L1 hit</span>
     <span class="metric-pill">🎯 &lt;30ms L2 hit</span>
@@ -471,13 +462,13 @@ strong{color:var(--text);font-weight:600}
   <div class="terminal">
     <div class="terminal-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>lettucecache demo</span></div>
     <div class="terminal-body" id="terminal-body">
-      <div><span class="t-comment"># First call — LLM is invoked</span></div>
+      <div><span class="t-comment"># First call - LLM is invoked</span></div>
       <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"ecommerce"}'</span></div>
       <div class="t-out">{ "cache_hit": <span class="t-miss">false</span>, "latency_ms": <span class="t-miss">843</span>, "answer": "Items can be returned within 30 days..." }</div>
-      <div style="margin-top:12px"><span class="t-comment"># Second call — served from cache instantly</span></div>
+      <div style="margin-top:12px"><span class="t-comment"># Second call - served from cache instantly</span></div>
       <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"ecommerce"}'</span></div>
       <div class="t-out">{ "cache_hit": <span class="t-hit">true</span>, "confidence": 0.94, "latency_ms": <span class="t-hit">22</span>, "answer": "Items can be returned within 30 days..." }</div>
-      <div style="margin-top:12px"><span class="t-comment"># Same query, different context — correctly misses</span></div>
+      <div style="margin-top:12px"><span class="t-comment"># Same query, different context - correctly misses</span></div>
       <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"fitness"}'</span></div>
       <div class="t-out">{ "cache_hit": <span class="t-miss">false</span>, "latency_ms": <span class="t-miss">761</span>, "answer": "Our gym membership cancellation policy..." }</div>
     </div>
@@ -486,9 +477,9 @@ strong{color:var(--text);font-weight:600}
   <h2 style="margin-top:48px">The Problem</h2>
   <p>Traditional caching matches on exact text. Semantic caching matches on meaning. Both fail for context-dependent queries:</p>
   <div class="card" style="margin:16px 0 28px;border-left:3px solid var(--orange)">
-    <p style="margin:0;font-size:15px;color:var(--text)"><strong>User A</strong> — <em>"What is the cancellation policy?"</em> (hotel booking)<br>
-    <strong>User B</strong> — <em>"What is the cancellation policy?"</em> (gym membership)</p>
-    <p style="margin:8px 0 0;color:var(--red);font-size:14px">A naive semantic cache serves User B the hotel answer — a false hit worse than a miss.</p>
+    <p style="margin:0;font-size:15px;color:var(--text)"><strong>User A</strong> - <em>"What is the cancellation policy?"</em> (hotel booking)<br>
+    <strong>User B</strong> - <em>"What is the cancellation policy?"</em> (gym membership)</p>
+    <p style="margin:8px 0 0;color:var(--red);font-size:14px">A naive semantic cache serves User B the hotel answer - a false hit worse than a miss.</p>
   </div>
   <table class="compare-table">
     <thead><tr><th>Approach</th><th>Exact match</th><th>Semantic match</th><th>Context-aware</th></tr></thead>
@@ -504,9 +495,9 @@ strong{color:var(--text);font-weight:600}
     <thead><tr><th>Metric</th><th>Value</th></tr></thead>
     <tbody>
       <tr><td>L1 cache latency (Redis)</td><td class="check">&lt; 1 ms</td></tr>
-      <tr><td>L2 cache latency (FAISS + TurboQuant)</td><td class="check">5–10 ms</td></tr>
+      <tr><td>L2 cache latency (FAISS + TurboQuant)</td><td class="check">5-10 ms</td></tr>
       <tr><td>End-to-end cache hit</td><td class="check">&lt; 30 ms</td></tr>
-      <tr><td>LLM call baseline</td><td style="color:var(--orange)">500–2000 ms</td></tr>
+      <tr><td>LLM call baseline</td><td style="color:var(--orange)">500-2000 ms</td></tr>
       <tr><td>Validation threshold</td><td style="color:var(--text)">0.85 (configurable)</td></tr>
       <tr><td>Embedding model</td><td style="color:var(--text)">all-MiniLM-L6-v2 (384 dims)</td></tr>
       <tr><td>TurboQuant compression</td><td class="check">7.8× (1536B → 196B, d=384)</td></tr>
@@ -517,7 +508,7 @@ strong{color:var(--text);font-weight:600}
 <!-- ══════════════════════════════ ARCHITECTURE ══════════════════════════════ -->
 <section id="architecture">
   <h2>Architecture</h2>
-  <p>LettuceCache sits between your application and the LLM. Every query passes through two cache layers before touching OpenAI. All reads are non-blocking; all writes are async.</p>
+  <p>Every query goes through two cache checks before hitting the LLM. Here is how that works: All reads are non-blocking; all writes are async.</p>
 
   <!-- ── Main flow diagram ── -->
   <div class="flow-diagram">
@@ -559,7 +550,7 @@ strong{color:var(--text);font-weight:600}
       <div class="flow-box blue-box">
         <div class="fb-icon">🔍</div>
         <div class="fb-title">L2 · FAISS</div>
-        <div class="fb-sub">ANN top-5 · 5–10ms</div>
+        <div class="fb-sub">ANN top-5 · 5-10ms</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-box blue-box">
@@ -642,9 +633,9 @@ strong{color:var(--text);font-weight:600}
   <div class="dd-panel" id="dd-pflxrwarch">
 <strong>Composition root:</strong> <span class="dd-file">src/api/HttpServer.cpp</span> owns every component
 as a <code>unique_ptr</code> and constructs them in dependency order.
-Nothing else uses <code>new</code> — all cross-component communication is via references.
+Nothing else uses <code>new</code> - all cross-component communication is via references.
 <ul>
-  <li><strong>TurboQuantizer</strong> is created first (if enabled) — FaissVectorStore and ValidationService both receive a raw pointer to it.</li>
+  <li><strong>TurboQuantizer</strong> is created first (if enabled) - FaissVectorStore and ValidationService both receive a raw pointer to it.</li>
   <li><strong>IntelligentAdmissionPolicy</strong> receives a reference to FaissVectorStore (for novelty search).</li>
   <li><strong>QueryOrchestrator</strong> receives a reference to the policy to record cache hits for adaptive threshold updates.</li>
   <li>Destruction order: <code>svr_</code> → <code>builder_</code> → everything else (FAISS persist on destructor).</li>
@@ -661,11 +652,11 @@ Nothing else uses <code>new</code> — all cross-component communication is via 
   </button>
   <div class="dd-panel" id="dd-anajeithread">
 <ul>
-  <li><span class="dd-file">FaissVectorStore</span>: <code>std::shared_mutex</code> — concurrent <code>search()</code> calls (shared lock), exclusive <code>add()</code>/<code>remove()</code>/<code>persist()</code>.</li>
-  <li><span class="dd-file">CacheBuilderWorker</span>: single background thread with <code>std::condition_variable</code> queue. <code>enqueue()</code> is the only method called from the hot path — it acquires a brief mutex, pushes, and notifies.</li>
+  <li><span class="dd-file">FaissVectorStore</span>: <code>std::shared_mutex</code> - concurrent <code>search()</code> calls (shared lock), exclusive <code>add()</code>/<code>remove()</code>/<code>persist()</code>.</li>
+  <li><span class="dd-file">CacheBuilderWorker</span>: single background thread with <code>std::condition_variable</code> queue. <code>enqueue()</code> is the only method called from the hot path - it acquires a brief mutex, pushes, and notifies.</li>
   <li><span class="dd-file">EmbeddingClient</span>: <code>std::mutex curl_mutex_</code> around the persistent CURL handle.</li>
-  <li><span class="dd-file">RedisCacheAdapter</span>: single <code>redisContext*</code> with no mutex — <strong>open bug</strong>. Concurrent requests race; a connection pool or per-call mutex is needed.</li>
-  <li><span class="dd-file">IntelligentAdmissionPolicy</span>: two separate mutexes — <code>freq_mutex_</code> and <code>domain_mutex_</code> — to avoid contention between frequency updates and domain stats reads.</li>
+  <li><span class="dd-file">RedisCacheAdapter</span>: single <code>redisContext*</code> with no mutex - <strong>open bug</strong>. Concurrent requests race; a connection pool or per-call mutex is needed.</li>
+  <li><span class="dd-file">IntelligentAdmissionPolicy</span>: two separate mutexes - <code>freq_mutex_</code> and <code>domain_mutex_</code> - to avoid contention between frequency updates and domain stats reads.</li>
 </ul>
 </div>
 </div>
@@ -681,34 +672,34 @@ Nothing else uses <code>new</code> — all cross-component communication is via 
       <div class="step-num">1</div>
       <div class="step-body">
         <h3>Client sends POST /query</h3>
-        <p>Request includes <code>query</code> text, <code>context[]</code> array of prior turns, <code>domain</code> (e.g. "ecommerce"), optional <code>user_id</code> and <code>correlation_id</code>.</p>
+        <p>Send <code>query</code>, <code>context[]</code> (prior turns), <code>domain</code>, and optionally <code>user_id</code> / <code>correlation_id</code>.</p>
       </div>
     </div>
     <div class="flow-step">
       <div class="step-num">2</div>
       <div class="step-body">
         <h3>ContextBuilder computes signature <span class="step-tag tag-green">CPU only</span></h3>
-        <p>Extracts top-3 non-stopword tokens as <em>intent</em>. Hashes <code>user_id</code> to 16-char anonymous scope. Sorts <code>context[]</code> canonically. Computes <code>SHA-256(intent:domain:scope:sorted_context)</code> as the <strong>signature_hash</strong>.</p>
+        <p>Pulls the first 3 meaningful words from the query as intent. Hashes user_id to a 16-char token (never stored raw). Sorts context turns. Combines into <code>SHA-256(intent:domain:scope:sorted_context)</code>.</p>
       </div>
     </div>
     <div class="flow-step">
       <div class="step-num">3</div>
       <div class="step-body">
         <h3>L1 Redis lookup <span class="step-tag tag-green">&lt; 1ms</span></h3>
-        <p>Checks <code>lc:l1:{signature_hash}</code>. On hit: returns immediately with <code>confidence=1.0</code>. On miss: proceeds to embedding.</p>
+        <p>Looks up <code>lc:l1:{sig_hash}</code>. Hit returns instantly at confidence 1.0. Miss moves to the embedding step.</p>
       </div>
     </div>
     <div class="flow-step">
       <div class="step-num">4</div>
       <div class="step-body">
         <h3>Embed query via Python sidecar <span class="step-tag tag-blue">~10ms</span></h3>
-        <p>POST to <code>:8001/embed</code>. Returns 384-dim float array, L2-normalised (<code>normalize_embeddings=True</code>). Circuit breaker prevents cascade failures if sidecar is down.</p>
+        <p>Calls <code>:8001/embed</code>, gets back 384 floats (L2-normalised). If the sidecar is down, a circuit breaker kicks in and falls through to the LLM instead of hanging.</p>
       </div>
     </div>
     <div class="flow-step">
       <div class="step-num">5</div>
       <div class="step-body">
-        <h3>FAISS search + ValidationService <span class="step-tag tag-blue">5–10ms</span></h3>
+        <h3>FAISS search + ValidationService <span class="step-tag tag-blue">5-10ms</span></h3>
         <p>Returns top-5 candidates. Each scored: <code>0.60×cosine + 0.25×ctx_match + 0.15×domain_match</code>. First candidate with score ≥ 0.85 wins. On hit: backfills L1 with the rendered response (slot placeholders filled).</p>
       </div>
     </div>
@@ -716,14 +707,14 @@ Nothing else uses <code>new</code> — all cross-component communication is via 
       <div class="step-num">6</div>
       <div class="step-body">
         <h3>LLM fallback + async cache build <span class="step-tag tag-orange">500ms+</span></h3>
-        <p>Calls <code>OpenAI gpt-4o-mini</code>. Response returned to client immediately. Entry enqueued to <code>CacheBuilderWorker</code> (background thread) — admission check, templatization, FAISS+Redis write. Client never waits for this.</p>
+        <p>Calls <code>OpenAI gpt-4o-mini</code>. Response returned to client immediately. Entry enqueued to <code>CacheBuilderWorker</code> (background thread) - admission check, templatization, FAISS+Redis write. Client never waits for this.</p>
       </div>
     </div>
   </div>
 
   <div class="callout callout-green">
     <div class="callout-icon">🔒</div>
-    <p><strong>Privacy by design.</strong> <code>user_id</code> is hashed to a 16-char token and never stored raw. Query text is never persisted — only the 384-dim embedding and a templatized response with high-entropy tokens (UUIDs, dates, numbers, proper nouns) replaced by <code>{{SLOT_N}}</code> placeholders.</p>
+    <p><strong>Privacy by design.</strong> <code>user_id</code> is hashed to a 16-char token and never stored raw. Query text is never persisted - only the 384-dim embedding and a templatized response with high-entropy tokens (UUIDs, dates, numbers, proper nouns) replaced by <code>{{SLOT_N}}</code> placeholders.</p>
   </div>
 
   <div class="callout callout-blue">
@@ -736,13 +727,13 @@ Nothing else uses <code>new</code> — all cross-component communication is via 
   </button>
   <div class="dd-panel" id="dd-nyolizsig">
 <strong>Input:</strong> query text, context[] array, domain string, user_id string<br><br>
-<strong>Step 1 — intent extraction</strong> (<span class="dd-file">ContextBuilder.cpp:extractIntent()</span>):<br>
+<strong>Step 1 - intent extraction</strong> (<span class="dd-file">ContextBuilder.cpp:extractIntent()</span>):<br>
 Lowercase → strip non-alphanumeric → skip 34 stopwords → take first 3 tokens → join with <code>_</code>.
 <div class="dd-math">"What is machine learning?" → "machine_learning"
 "How do I reset my password?" → "reset_password"</div>
-<strong>Step 2 — user anonymisation</strong>: <code>SHA-256("user:" + user_id)[:16]</code> — never stores raw identity.<br><br>
-<strong>Step 3 — context canonicalisation</strong>: <code>std::sort(context_turns)</code> — reversed order produces same hash.<br><br>
-<strong>Step 4 — signature</strong>:
+<strong>Step 2 - user anonymisation</strong>: <code>SHA-256("user:" + user_id)[:16]</code> - never stores raw identity.<br><br>
+<strong>Step 3 - context canonicalisation</strong>: <code>std::sort(context_turns)</code> - reversed order produces same hash.<br><br>
+<strong>Step 4 - signature</strong>:
 <div class="dd-math">SHA-256( intent + ":" + domain + ":" + user_scope + ":" + sorted_context_joined )</div>
 This 64-char hex string is the Redis L1 key suffix and the <code>context_signature</code> on each FAISS entry.
 </div>
@@ -770,7 +761,7 @@ Read <code>lc:slots:{entry_id}</code> → parse JSON array → <code>Templatizer
 <!-- ══════════════════════════════ VALIDATION ══════════════════════════════ -->
 <section id="validation">
   <h2>Validation Scoring</h2>
-  <p>The <code>ValidationService</code> computes a weighted composite score for each FAISS candidate. The first candidate scoring above the threshold (default 0.85) is returned as a hit.</p>
+  <p>For each FAISS candidate, a composite score is computed. First one at or above 0.85 gets returned as a cache hit.</p>
 
   <div class="score-formula">
     score = <span class="w">0.60</span> × cosine_similarity + <span class="w">0.25</span> × context_match + <span class="w">0.15</span> × domain_match
@@ -831,7 +822,7 @@ Read <code>lc:slots:{entry_id}</code> → parse JSON array → <code>Templatizer
 
   <div class="callout callout-blue">
     <div class="callout-icon">⚡</div>
-    <p><strong>TurboQuant-corrected scoring.</strong> With <code>ENABLE_TURBO_QUANT=1</code>, the cosine term uses the unbiased inner-product estimator: <code>E[TQ_ip(y, encode(x))] = ⟨y, x⟩</code>. This is critical — at 1-bit MSE alone, every cosine score would be scaled by 2/π ≈ 0.64, making 0.85 unreachable. TurboQuant_prod eliminates this bias entirely.</p>
+    <p><strong>TurboQuant-corrected scoring.</strong> With <code>ENABLE_TURBO_QUANT=1</code>, the cosine term uses the unbiased inner-product estimator: <code>E[TQ_ip(y, encode(x))] = ⟨y, x⟩</code>. This is critical - at 1-bit MSE alone, every cosine score would be scaled by 2/π ≈ 0.64, making 0.85 unreachable. TurboQuant_prod eliminates this bias entirely.</p>
   </div>
 <div class="dd-wrap">
   <button class="dd-btn" onclick="ddToggle('esjryqval',this)">
@@ -842,11 +833,11 @@ Read <code>lc:slots:{entry_id}</code> → parse JSON array → <code>Templatizer
 <strong>Two paths for cosine similarity:</strong><br>
 <ul>
   <li><strong>TurboQuant path</strong>: if <code>tq_ != nullptr</code> and <code>candidate.tq_codes</code> is non-empty → calls <code>tq_->inner_product(query_embedding, tq_codes)</code>. Returns unbiased estimate E[result] = ⟨y,x⟩.</li>
-  <li><strong>Fast dot-product path</strong>: embeddings are L2-normalised by the Python sidecar, so cosine = dot product. The original <code>sqrt(norm_a) * sqrt(norm_b)</code> computation was always computing sqrt(1)×sqrt(1) = 1 — eliminated.</li>
+  <li><strong>Fast dot-product path</strong>: embeddings are L2-normalised by the Python sidecar, so cosine = dot product. The original <code>sqrt(norm_a) * sqrt(norm_b)</code> computation was always computing sqrt(1)×sqrt(1) = 1 - eliminated.</li>
 </ul>
 <strong>Composite score:</strong>
 <div class="dd-math">score = 0.60 × cosine + 0.25 × (sig_hash match ? 1 : 0) + 0.15 × (domain match ? 1 : 0)</div>
-A context mismatch alone caps the maximum achievable score at <strong>0.75</strong> — safely below the 0.85 threshold, making false hits across conversation contexts structurally impossible.
+A context mismatch alone caps the maximum achievable score at <strong>0.75</strong> - safely below the 0.85 threshold, making false hits across conversation contexts structurally impossible.
 </div>
 </div>
 </section>
@@ -854,7 +845,7 @@ A context mismatch alone caps the maximum achievable score at <strong>0.75</stro
 <!-- ══════════════════════════════ CONTEXT SIGNATURES ══════════════════════════════ -->
 <section id="context-signatures">
   <h2>Context Signatures</h2>
-  <p>The signature is the mechanism that prevents false hits. Two identical queries with different conversation histories will never share a cache entry.</p>
+  <p>This is what stops false hits. Two identical queries with different conversation histories get different signatures and never share a cache entry.</p>
 
   <div class="sig-steps">
     <div class="sig-step">
@@ -871,7 +862,7 @@ A context mismatch alone caps the maximum achievable score at <strong>0.75</stro
       <div class="sig-step-body">
         <h4>Anonymise User</h4>
         <p style="font-size:13px;margin:0;color:var(--text2)">SHA-256(<code>"user:u_12345"</code>)[:16] → <code>3a7f2c91b0e4d852</code></p>
-        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">Deterministic 16-char hex token — user_id is never stored raw</p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">Deterministic 16-char hex token - user_id is never stored raw</p>
       </div>
     </div>
     <div class="sig-arrow">↓</div>
@@ -880,7 +871,7 @@ A context mismatch alone caps the maximum achievable score at <strong>0.75</stro
       <div class="sig-step-body">
         <h4>Canonicalize Context</h4>
         <p style="font-size:13px;margin:0;color:var(--text2)"><code>["bot: hello", "user: hi"]</code> → sorted → <code>["bot: hello", "user: hi"]|</code></p>
-        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">Lexicographic sort ensures order-independent hashing</p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">Sort ensures the hash is the same regardless of turn order</p>
       </div>
     </div>
     <div class="sig-arrow">↓</div>
@@ -889,7 +880,7 @@ A context mismatch alone caps the maximum achievable score at <strong>0.75</stro
       <div class="sig-step-body">
         <h4>Compute SHA-256</h4>
         <p style="font-size:13px;margin:0;color:var(--text2)">SHA-256(<code>"cancellation_policy_booking:ecommerce:3a7f2c91b0e4d852:..."</code>)</p>
-        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">= <code style="color:var(--green)">a3f2c1d8e9f0b2c3...</code> — this is the Redis L1 key suffix</p>
+        <p style="font-size:12px;margin:4px 0 0;color:var(--text3)">= <code style="color:var(--green)">a3f2c1d8e9f0b2c3...</code> - this is the Redis L1 key suffix</p>
       </div>
     </div>
   </div>
@@ -907,7 +898,7 @@ A context mismatch alone caps the maximum achievable score at <strong>0.75</stro
 
   <div class="callout callout-orange">
     <div class="callout-icon">⚠️</div>
-    <p><strong>Context mismatch caps score at 0.75.</strong> The context term (weight 0.25) contributes a maximum of 0.25 on match. On mismatch: max score = 0.60×1.0 + 0.0 + 0.15×1.0 = 0.75 — safely below the 0.85 threshold. The cache <em>cannot</em> serve a false hit across context boundaries regardless of embedding similarity.</p>
+    <p><strong>Context mismatch caps score at 0.75.</strong> The context term (weight 0.25) contributes a maximum of 0.25 on match. On mismatch: max score = 0.60×1.0 + 0.0 + 0.15×1.0 = 0.75 - safely below the 0.85 threshold. The cache <em>cannot</em> serve a false hit across context boundaries regardless of embedding similarity.</p>
   </div>
 <div class="dd-wrap">
   <button class="dd-btn" onclick="ddToggle('jvbryuctx',this)">
@@ -933,7 +924,7 @@ Sorted turns → same hash regardless of order. The original <code>std::find</co
     <thead><tr><th>Rule</th><th>Default</th><th>Purpose</th></tr></thead>
     <tbody>
       <tr><td>min_frequency</td><td>2</td><td>Same signature must be seen ≥ N times in the window</td></tr>
-      <tr><td>window_seconds</td><td>300 (5 min)</td><td>Rolling time window — counter resets after inactivity</td></tr>
+      <tr><td>window_seconds</td><td>300 (5 min)</td><td>Rolling time window - counter resets after inactivity</td></tr>
       <tr><td>max_response_bytes</td><td>32 768</td><td>Responses &gt; 32 KB are too specific to reuse</td></tr>
     </tbody>
   </table>
@@ -947,9 +938,9 @@ Sorted turns → same hash regardless of order. The original <code>std::find</co
     </div>
     <div class="tl-row"><div class="tl-req">Request #1</div><div class="tl-count">count=1</div><div class="tl-result">recordQuery() <span class="tl-badge tl-reject">✗ Rejected</span></div></div>
     <div class="tl-row"><div class="tl-req">Request #2</div><div class="tl-count">count=2</div><div class="tl-result">shouldAdmit() = true → writes to FAISS + Redis <span class="tl-badge tl-admit">✓ Admitted</span></div></div>
-    <div class="tl-row"><div class="tl-req">Request #3+</div><div class="tl-count">count=3+</div><div class="tl-result">L1/L2 cache serves it — CacheBuilderWorker deduplicates <span class="tl-badge tl-admit">✓ Served</span></div></div>
-    <div class="tl-row" style="background:rgba(30,45,69,.3)"><div class="tl-req" style="color:var(--text3)">After 5 min idle</div><div class="tl-count" style="color:var(--text3)">reset</div><div class="tl-result" style="color:var(--text3)">evictExpired() — counter resets to 0</div></div>
-    <div class="tl-row"><div class="tl-req">Request #4</div><div class="tl-count">count=1</div><div class="tl-result">Window expired — starts fresh <span class="tl-badge tl-reject">✗ Rejected</span></div></div>
+    <div class="tl-row"><div class="tl-req">Request #3+</div><div class="tl-count">count=3+</div><div class="tl-result">L1/L2 cache serves it - CacheBuilderWorker deduplicates <span class="tl-badge tl-admit">✓ Served</span></div></div>
+    <div class="tl-row" style="background:rgba(30,45,69,.3)"><div class="tl-req" style="color:var(--text3)">After 5 min idle</div><div class="tl-count" style="color:var(--text3)">reset</div><div class="tl-result" style="color:var(--text3)">evictExpired() - counter resets to 0</div></div>
+    <div class="tl-row"><div class="tl-req">Request #4</div><div class="tl-count">count=1</div><div class="tl-result">Window expired - starts fresh <span class="tl-badge tl-reject">✗ Rejected</span></div></div>
   </div>
 
   <div class="callout callout-green">
@@ -958,14 +949,14 @@ Sorted turns → same hash regardless of order. The original <code>std::find</co
   </div>
 <div class="dd-wrap">
   <button class="dd-btn" onclick="ddToggle('lzysexadm',this)">
-    <span>ℹ</span> Intelligent Admission: Cache Value Function (CVF) — full algorithm <span class="dd-arrow">▶</span>
+    <span>ℹ</span> Intelligent Admission: Cache Value Function (CVF) - full algorithm <span class="dd-arrow">▶</span>
   </button>
   <div class="dd-panel" id="dd-lzysexadm">
 <strong>File:</strong> <span class="dd-file">src/builder/IntelligentAdmissionPolicy.cpp</span><br><br>
 <strong>Pipeline in CacheBuilderWorker::processEntry():</strong>
 <ol style="padding-left:18px;margin:8px 0">
-  <li>Size gate (AdmissionController) — fast reject oversized/empty</li>
-  <li>ResponseQualityFilter — hard reject conversational, session-bound, refusals, dynamic content</li>
+  <li>Size gate (AdmissionController) - fast reject oversized/empty</li>
+  <li>ResponseQualityFilter - hard reject conversational, session-bound, refusals, dynamic content</li>
   <li><strong>CVF decision</strong> (IntelligentAdmissionPolicy)</li>
 </ol>
 <strong>CVF signals:</strong>
@@ -975,7 +966,7 @@ cost       = sigmoid((tokens × tier - 150) / 350)
 novelty    = 1 - max_cosine(new_emb, faiss_top1)
              cosine &gt; 0.94 → hard-reject (near-duplicate)
 adaptive_threshold = base(0.42) ± 0.08 × domain_hit_rate_signal</div>
-<strong>Novel insight (literature gap):</strong> No existing LLM caching paper unifies all four signals. LettuceCache fills this gap — identified as open research in the survey (resources/Intelligent Cache Admission…).
+<strong>Novel insight (literature gap):</strong> No existing LLM caching paper unifies all four signals. LettuceCache fills this gap - identified as open research in the survey (resources/Intelligent Cache Admission…).
 </div>
 </div>
 </section>
@@ -983,7 +974,7 @@ adaptive_threshold = base(0.42) ± 0.08 × domain_hit_rate_signal</div>
 <!-- ══════════════════════════════ TURBOQUANT ══════════════════════════════ -->
 <section id="turbo-quant">
   <h2>TurboQuant Integration</h2>
-  <p>TurboQuant (<a href="https://arxiv.org/abs/2504.19874" style="color:var(--cyan)">arXiv:2504.19874</a>, Zandieh et al. 2025) is a data-oblivious vector quantizer that achieves <strong>near-optimal distortion</strong> with zero training time and provably <strong>unbiased inner-product estimation</strong> — the two properties LettuceCache needs most.</p>
+  <p>TurboQuant (<a href="https://arxiv.org/abs/2504.19874" style="color:var(--cyan)">arXiv:2504.19874</a>, Zandieh et al. 2025) is a data-oblivious vector quantizer that achieves <strong>near-optimal distortion</strong> with zero training time and provably <strong>unbiased inner-product estimation</strong> - the two properties LettuceCache needs most.</p>
 
   <!-- Hero stats -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0">
@@ -1016,7 +1007,7 @@ adaptive_threshold = base(0.42) ± 0.08 × domain_hit_rate_signal</div>
       </div>
       <div class="tq-problem-col good">
         <h4 style="color:var(--green);text-transform:none;letter-spacing:0;font-size:14px">✓ With TurboQuant_prod</h4>
-        <p style="font-size:13px;margin:8px 0">The two-stage algorithm (MSE + QJL residual) produces an <strong>unbiased estimator</strong> — threshold remains exactly as configured:</p>
+        <p style="font-size:13px;margin:8px 0">The two-stage algorithm (MSE + QJL residual) produces an <strong>unbiased estimator</strong> - threshold remains exactly as configured:</p>
         <div class="tq-math-box" style="border-color:rgba(16,185,129,.3)">
           <div>E[⟨y, Q⁻¹(Q(x))⟩] = ⟨y, x⟩</div>
           <div>σ(score) ≈ 0.027 at d=384</div>
@@ -1058,10 +1049,10 @@ x̂ = x / norm</div>
       <div class="tq-algo-num" style="background:rgba(99,102,241,.1);border-color:var(--purple);color:#818cf8">1b</div>
       <div>
         <div class="tq-algo-title">Randomized Hadamard Transform (RHT)</div>
-        <div class="tq-algo-desc">Apply random sign-flip then Walsh-Hadamard transform. This <strong>rotates</strong> x̂ so that each coordinate follows <strong>N(0, 1/padded_dim)</strong> — independent of the input. Runs in O(d log d).</div>
+        <div class="tq-algo-desc">Apply random sign-flip then Walsh-Hadamard transform. This <strong>rotates</strong> x̂ so that each coordinate follows <strong>N(0, 1/padded_dim)</strong> - independent of the input. Runs in O(d log d).</div>
         <div class="tq-algo-code">D = diag(±1) drawn from seed=42
 y = (1/√n) · WHT · D · x̂_padded</div>
-        <div class="tq-algo-note">After rotation, the coordinate distribution is known analytically — this is what enables optimal codebooks without data.</div>
+        <div class="tq-algo-note">After rotation, the coordinate distribution is known analytically - this is what enables optimal codebooks without data.</div>
       </div>
     </div>
     <div class="tq-algo-arrow">↓</div>
@@ -1073,14 +1064,14 @@ y = (1/√n) · WHT · D · x̂_padded</div>
         <div class="tq-algo-title">Lloyd-Max Scalar Quantization (3 bits)</div>
         <div class="tq-algo-desc">Scale each coordinate by √n (→ N(0,1)), then binary-search the <strong>precomputed codebook</strong> to find the nearest centroid. Pack index as 3 bits.</div>
         <div class="tq-codebook">
-          <div class="tq-codebook-label">4-bit Lloyd-Max codebook for N(0,1) — 16 centroids</div>
+          <div class="tq-codebook-label">4-bit Lloyd-Max codebook for N(0,1) - 16 centroids</div>
           <div class="tq-centroids">
             <span>−2.733</span><span>−2.069</span><span>−1.618</span><span>−1.256</span>
             <span>−0.942</span><span>−0.657</span><span>−0.388</span><span>−0.128</span>
             <span>+0.128</span><span>+0.388</span><span>+0.657</span><span>+0.942</span>
             <span>+1.256</span><span>+1.618</span><span>+2.069</span><span>+2.733</span>
           </div>
-          <div class="tq-codebook-label" style="margin-top:8px">3-bit codebook (used in MSE stage) — 8 centroids</div>
+          <div class="tq-codebook-label" style="margin-top:8px">3-bit codebook (used in MSE stage) - 8 centroids</div>
           <div class="tq-centroids">
             <span>−2.152</span><span>−1.344</span><span>−0.756</span><span>−0.245</span>
             <span>+0.245</span><span>+0.756</span><span>+1.344</span><span>+2.152</span>
@@ -1168,7 +1159,7 @@ sign_bits = sign(S · r)  // d bits total</div>
   <table class="compare-table">
     <thead><tr><th>Property</th><th>FAISS IVF+PQ</th><th>TurboQuant_prod</th></tr></thead>
     <tbody>
-      <tr><td>Training required</td><td class="cross">✗ Yes — k-means on all vectors</td><td class="check">✓ None — data-oblivious</td></tr>
+      <tr><td>Training required</td><td class="cross">✗ Yes - k-means on all vectors</td><td class="check">✓ None - data-oblivious</td></tr>
       <tr><td>Online indexing</td><td class="cross">✗ Must retrain as distribution shifts</td><td class="check">✓ Encode any vector instantly</td></tr>
       <tr><td>Inner product bias</td><td class="cross">✗ Uncharacterised analytically</td><td class="check">✓ Zero bias (proved)</td></tr>
       <tr><td>Distortion bound</td><td style="color:var(--orange)">Data-dependent, no guarantee</td><td class="check">Within 2.7× of Shannon lower bound</td></tr>
@@ -1187,7 +1178,7 @@ sign_bits = sign(S · r)  // d bits total</div>
     <span>ℹ</span> RHT zero-padding fix: why we quantize padded_dim coordinates <span class="dd-arrow">▶</span>
   </button>
   <div class="dd-panel" id="dd-vrggkvtq">
-<strong>The bug (initial implementation):</strong> Walsh-Hadamard Transform on a 384-dim vector pads to 512 (next power of 2). After WHT, signal energy distributes across all 512 output coordinates. The original code quantized only the first 384 — discarding energy in the remaining 128.<br><br>
+<strong>The bug (initial implementation):</strong> Walsh-Hadamard Transform on a 384-dim vector pads to 512 (next power of 2). After WHT, signal energy distributes across all 512 output coordinates. The original code quantized only the first 384 - discarding energy in the remaining 128.<br><br>
 <strong>Symptom:</strong> MSE of 0.233 for d=384 vs theoretical bound of 0.133.<br><br>
 <strong>Fix</strong> (<span class="dd-file">TurboQuantizer.cpp</span>):
 <div class="dd-math">// Before (bug):  loop j in 0..dim_       → only 384 coords
@@ -1231,7 +1222,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
       <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td>query<span class="req-badge">required</span></td><td>string</td><td>The user's question</td></tr>
-        <tr><td>context</td><td>string[]</td><td>Prior conversation turns. Sorted canonically before hashing — order doesn't matter.</td></tr>
+        <tr><td>context</td><td>string[]</td><td>Prior conversation turns. Sorted canonically before hashing - order doesn't matter.</td></tr>
         <tr><td>user_id</td><td>string</td><td>Hashed to 16-char scope token. Never stored raw.</td></tr>
         <tr><td>session_id</td><td>string</td><td>Passed through to logs for distributed tracing. Not used in cache logic.</td></tr>
         <tr><td>domain</td><td>string</td><td>Domain tag (e.g. ecommerce, healthcare). Defaults to "general".</td></tr>
@@ -1254,7 +1245,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
       <tbody>
         <tr><td>answer</td><td>string</td><td>The response text</td></tr>
         <tr><td>cache_hit</td><td>boolean</td><td>true if served from L1 or L2 cache</td></tr>
-        <tr><td>confidence</td><td>float</td><td>Validation score 0.0–1.0. 1.0 on L1 hit (no scoring needed). 0.0 on LLM fallback.</td></tr>
+        <tr><td>confidence</td><td>float</td><td>Validation score 0.0-1.0. 1.0 on L1 hit (no scoring needed). 0.0 on LLM fallback.</td></tr>
         <tr><td>cache_entry_id</td><td>string</td><td>FAISS entry ID on L2 hit; L1 key on L1 hit; empty on miss.</td></tr>
         <tr><td>latency_ms</td><td>integer</td><td>Total server-side processing time</td></tr>
       </tbody>
@@ -1265,7 +1256,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
     <div class="endpoint-badge"><span class="method method-get">GET</span><span class="path">/health</span></div>
     <p>Dependency health check. Returns 200 when all services healthy, 503 when degraded. Used as Kubernetes readiness probe.</p>
     <div class="code-wrap">
-      <pre><code class="language-json">// 200 OK — healthy
+      <pre><code class="language-json">// 200 OK - healthy
 {
   "status": "ok",
   "redis": true,
@@ -1274,7 +1265,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
   "queue_depth": 3
 }
 
-// 503 Service Unavailable — degraded
+// 503 Service Unavailable - degraded
 {
   "status": "degraded",
   "redis": false,
@@ -1288,7 +1279,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
 
   <div class="api-panel" id="panel-stats">
     <div class="endpoint-badge"><span class="method method-get">GET</span><span class="path">/stats</span></div>
-    <p>Lightweight stats snapshot. No dependency checks — always fast.</p>
+    <p>Lightweight stats snapshot. No dependency checks - always fast.</p>
     <div class="code-wrap">
       <pre><code class="language-json">{
   "faiss_entries": 1042,
@@ -1359,7 +1350,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
       <tr><td>REDIS_HOST</td><td>localhost</td><td>Redis server hostname</td></tr>
       <tr><td>REDIS_PORT</td><td>6379</td><td>Redis server port</td></tr>
       <tr><td>EMBED_URL</td><td>http://localhost:8001</td><td>Python sidecar base URL</td></tr>
-      <tr><td>EMBED_DIM</td><td>384</td><td>Embedding dimension — must match model</td></tr>
+      <tr><td>EMBED_DIM</td><td>384</td><td>Embedding dimension - must match model</td></tr>
       <tr><td>OPENAI_API_KEY</td><td><em>empty</em></td><td>OpenAI API key. Empty → stub response mode (useful for testing)</td></tr>
       <tr><td>LLM_MODEL</td><td>gpt-4o-mini</td><td>OpenAI model name (e.g. gpt-4o, gpt-3.5-turbo)</td></tr>
       <tr><td>HTTP_PORT</td><td>8080</td><td>Orchestrator HTTP listen port</td></tr>
@@ -1411,15 +1402,15 @@ cd LettuceCache</code></pre><button class="copy-btn" onclick="copy(this)">Copy</
       <div class="code-wrap"><pre><code class="language-json">{ "status": "ok", "redis": true, "embedding_sidecar": true, "faiss_entries": 0 }</code></pre></div>
     </div>
     <div class="qs-step">
-      <h3>First query — LLM called, result cached</h3>
+      <h3>First query - LLM called, result cached</h3>
       <div class="code-wrap"><pre><code class="language-bash">curl -s -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is the capital of France?","domain":"geography"}' | jq .</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
       <div class="code-wrap"><pre><code class="language-json">{ "answer": "The capital of France is Paris.", "cache_hit": false, "latency_ms": 712 }</code></pre></div>
     </div>
     <div class="qs-step">
-      <h3>Same query — served from cache (37× faster)</h3>
-      <div class="code-wrap"><pre><code class="language-bash"># Send again — admission threshold met after 2nd hit, cache is populated
+      <h3>Same query - served from cache (37× faster)</h3>
+      <div class="code-wrap"><pre><code class="language-bash"># Send again - admission threshold met after 2nd hit, cache is populated
 curl -s -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is the capital of France?","domain":"geography"}' | jq .</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
@@ -1561,6 +1552,13 @@ function copy(btn){
     btn.style.color = 'var(--green)';
     setTimeout(()=>{ btn.textContent=orig; btn.style.color=''; }, 1500);
   });
+}
+
+function ddToggle(id, btn) {
+  var panel = document.getElementById('dd-' + id);
+  var isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  btn.classList.toggle('open', !isOpen);
 }
 </script>
 </body>
