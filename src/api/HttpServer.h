@@ -8,8 +8,8 @@ namespace lettucecache::cache        { class RedisCacheAdapter; class FaissVecto
 namespace lettucecache::embedding    { class EmbeddingClient; }
 namespace lettucecache::llm          { class OpenAIAdapter; }
 namespace lettucecache::validation   { class ValidationService; }
-namespace lettucecache::builder      { class AdmissionController; class Templatizer;
-                                       class CacheBuilderWorker; }
+namespace lettucecache::builder      { class AdmissionController; class ResponseQualityFilter;
+                                       class Templatizer; class CacheBuilderWorker; }
 namespace lettucecache::orchestrator { class QueryOrchestrator; }
 namespace lettucecache::quantization { class TurboQuantizer; }
 
@@ -42,6 +42,7 @@ private:
     std::unique_ptr<llm::OpenAIAdapter>             llm_;
     std::unique_ptr<validation::ValidationService>  validator_;
     std::unique_ptr<builder::AdmissionController>   admission_;
+    std::unique_ptr<builder::ResponseQualityFilter> quality_filter_;
     std::unique_ptr<builder::Templatizer>           templatizer_;
     std::unique_ptr<builder::CacheBuilderWorker>    builder_;
     std::unique_ptr<orchestrator::QueryOrchestrator> orchestrator_;

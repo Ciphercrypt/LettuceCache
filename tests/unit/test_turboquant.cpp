@@ -319,3 +319,98 @@ TEST(FaissVectorStoreDryRun, TQCodesHexRoundTrip) {
     float ip_after  = tq.inner_product(query, decoded);
     EXPECT_FLOAT_EQ(ip_before, ip_after);
 }
+
+// ── ResponseQualityFilter dry-run tests ──────────────────────────────────────
+#include "builder/ResponseQualityFilter.h"
+using lettucecache::builder::ResponseQualityFilter;
+
+TEST(ResponseQualityFilter, RejectsConversationalOpener) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate("Sure, I can help with that!", "help me");
+    EXPECT_FALSE(r.should_cache) << "short conversational opener must be rejected";
+}
+
+TEST(ResponseQualityFilter, RejectsRefusal) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate("I don't know the answer to that question.", "what is X");
+    EXPECT_FALSE(r.should_cache) << "refusal/ignorance must be rejected";
+}
+
+TEST(ResponseQualityFilter, RejectsSessionBound) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate("As I mentioned earlier, the answer is 42.", "remind me");
+    EXPECT_FALSE(r.should_cache) << "session-bound reference must be rejected";
+}
+
+TEST(ResponseQualityFilter, RejectsShortAck) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate("Got it!", "ok");
+    EXPECT_FALSE(r.should_cache) << "one-word acknowledgement must be rejected";
+}
+
+TEST(ResponseQualityFilter, AcceptsFactualAnswer) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate(
+        "Machine learning is a subset of artificial intelligence that enables "
+        "systems to learn and improve from experience without being explicitly "
+        "programmed. It focuses on developing computer programs that can access "
+        "data and use it to learn for themselves.",
+        "what is machine learning");
+    EXPECT_TRUE(r.should_cache) << "clear factual explanation must be cached";
+    EXPECT_GT(r.score, 0.40f);
+}
+
+TEST(ResponseQualityFilter, AcceptsStructuredList) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate(
+        "To reset your password:\n"
+        "1. Go to the login page\n"
+        "2. Click 'Forgot Password'\n"
+        "3. Enter your email address\n"
+        "4. Check your inbox for the reset link\n"
+        "5. Follow the link and create a new password",
+        "how to reset password");
+    EXPECT_TRUE(r.should_cache) << "numbered list of instructions must be cached";
+    EXPECT_GT(r.score, 0.55f);
+}
+
+TEST(ResponseQualityFilter, RejectsDynamicContent) {
+    ResponseQualityFilter f;
+    auto r = f.evaluate(
+        "Your order is currently being processed. Right now it's at the warehouse "
+        "and should ship today. Your account balance will be updated shortly.",
+        "where is my order");
+    EXPECT_FALSE(r.should_cache) << "real-time order status must not be cached";
+}
+
+TEST(ResponseQualityFilter, AcceptsLongOpenerWithSubstance) {
+    ResponseQualityFilter f;
+    // Opener followed by substantial content — should still cache
+    auto r = f.evaluate(
+        "Sure! Here is a step-by-step guide to implement a binary search tree in C++:\n\n"
+        "1. Define a Node struct with a value, left pointer, and right pointer.\n"
+        "2. Implement an insert function that traverses the tree recursively.\n"
+        "3. Implement a search function that returns true if the value exists.\n"
+        "4. Implement an in-order traversal to visit nodes in sorted order.\n"
+        "The time complexity for search and insert is O(log n) for balanced trees.",
+        "binary search tree c++");
+    EXPECT_TRUE(r.should_cache)
+        << "opener + long structured content should still be cached";
+}
+
+TEST(ResponseQualityFilter, ScoreOrderMakeseSense) {
+    ResponseQualityFilter f;
+    auto conversational = f.evaluate("Sure, happy to help!", "?");
+    auto factual_short  = f.evaluate(
+        "The boiling point of water is 100 degrees Celsius at sea level.", "water");
+    auto factual_long   = f.evaluate(
+        "The boiling point of water is 100°C (212°F) at standard atmospheric "
+        "pressure (1 atm). At higher altitudes the pressure is lower, so water "
+        "boils at lower temperatures — for example at 3000m altitude it boils "
+        "at approximately 90°C. Adding salt raises the boiling point slightly "
+        "through a process called boiling point elevation.",
+        "boiling point water");
+
+    EXPECT_LT(conversational.score, factual_short.score);
+    EXPECT_LT(factual_short.score, factual_long.score);
+}

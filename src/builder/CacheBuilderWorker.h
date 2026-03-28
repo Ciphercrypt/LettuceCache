@@ -9,6 +9,7 @@
 #include "../cache/RedisCacheAdapter.h"
 #include "../cache/FaissVectorStore.h"
 #include "AdmissionController.h"
+#include "ResponseQualityFilter.h"
 #include "Templatizer.h"
 
 namespace lettucecache::builder {
@@ -29,6 +30,7 @@ public:
         cache::RedisCacheAdapter& redis,
         cache::FaissVectorStore& faiss,
         AdmissionController& admission,
+        ResponseQualityFilter& quality_filter,
         Templatizer& templatizer
     );
     ~CacheBuilderWorker();
@@ -45,6 +47,7 @@ private:
     cache::RedisCacheAdapter& redis_;
     cache::FaissVectorStore& faiss_;
     AdmissionController& admission_;
+    ResponseQualityFilter& quality_filter_;
     Templatizer& templatizer_;
 
     std::queue<CacheEntryRequest> queue_;

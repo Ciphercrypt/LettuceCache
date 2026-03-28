@@ -70,6 +70,7 @@ set(LIB_SOURCES
     src/validation/ValidationService.cpp
     src/builder/CacheBuilderWorker.cpp
     src/builder/AdmissionController.cpp
+    src/builder/ResponseQualityFilter.cpp
     src/builder/Templatizer.cpp
     src/embedding/EmbeddingClient.cpp
     src/llm/OpenAIAdapter.cpp

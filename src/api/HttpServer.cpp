@@ -5,6 +5,7 @@
 #include "../llm/OpenAIAdapter.h"
 #include "../validation/ValidationService.h"
 #include "../builder/AdmissionController.h"
+#include "../builder/ResponseQualityFilter.h"
 #include "../builder/Templatizer.h"
 #include "../builder/CacheBuilderWorker.h"
 #include "../orchestrator/QueryOrchestrator.h"
@@ -48,10 +49,15 @@ HttpServer::HttpServer(const std::string& redis_host,
     llm_        = std::make_unique<llm::OpenAIAdapter>(openai_key, llm_model);
     spdlog::info("  LLM model: {}", llm_model);
     validator_  = std::make_unique<validation::ValidationService>(0.85, tq_.get());
-    admission_  = std::make_unique<builder::AdmissionController>(2, 300, 32768);
-    templatizer_ = std::make_unique<builder::Templatizer>();
-    builder_    = std::make_unique<builder::CacheBuilderWorker>(
-        *redis_, *faiss_, *admission_, *templatizer_);
+    admission_      = std::make_unique<builder::AdmissionController>(2, 300, 32768);
+    // ResponseQualityFilter threshold configurable via CACHE_QUALITY_THRESHOLD env var
+    const char* q_thresh = std::getenv("CACHE_QUALITY_THRESHOLD");
+    float quality_thresh = q_thresh ? std::stof(q_thresh) : 0.40f;
+    quality_filter_ = std::make_unique<builder::ResponseQualityFilter>(quality_thresh);
+    spdlog::info("ResponseQualityFilter enabled (threshold={:.2f})", quality_thresh);
+    templatizer_    = std::make_unique<builder::Templatizer>();
+    builder_        = std::make_unique<builder::CacheBuilderWorker>(
+        *redis_, *faiss_, *admission_, *quality_filter_, *templatizer_);
     orchestrator_ = std::make_unique<orchestrator::QueryOrchestrator>(
         *redis_, *faiss_, *embedder_, *llm_, *validator_, *builder_);
     svr_        = std::make_unique<httplib::Server>();

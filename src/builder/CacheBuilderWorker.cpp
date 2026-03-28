@@ -28,9 +28,11 @@ CacheBuilderWorker::CacheBuilderWorker(
     cache::RedisCacheAdapter& redis,
     cache::FaissVectorStore& faiss,
     AdmissionController& admission,
+    ResponseQualityFilter& quality_filter,
     Templatizer& templatizer)
     : redis_(redis), faiss_(faiss),
-      admission_(admission), templatizer_(templatizer) {}
+      admission_(admission), quality_filter_(quality_filter),
+      templatizer_(templatizer) {}
 
 CacheBuilderWorker::~CacheBuilderWorker() {
     stop();
@@ -87,21 +89,32 @@ void CacheBuilderWorker::processEntry(const CacheEntryRequest& req) {
     // 1. Record query frequency regardless
     admission_.recordQuery(req.signature_hash);
 
-    // 2. Admission gate
+    // 2. Admission gate (frequency + size)
     if (!admission_.shouldAdmit(req.signature_hash, req.llm_response)) {
         spdlog::debug("CacheBuilder: admission rejected for sig={}", req.signature_hash);
         return;
     }
+
+    // 3. Response quality filter — skip conversational, session-bound,
+    //    time-sensitive, or low-information responses
+    auto quality = quality_filter_.evaluate(req.llm_response, req.query);
+    if (!quality.should_cache) {
+        spdlog::info("CacheBuilder: quality rejected sig={} score={:.2f} reason={}",
+                     req.signature_hash, quality.score, quality.reason);
+        return;
+    }
+    spdlog::debug("CacheBuilder: quality accepted sig={} score={:.2f} ({})",
+                  req.signature_hash, quality.score, quality.reason);
 
     if (req.embedding.empty()) {
         spdlog::warn("CacheBuilder: empty embedding for sig={}, skipping", req.signature_hash);
         return;
     }
 
-    // 3. Templatize the response
+    // 4. Templatize the response
     auto tpl_result = templatizer_.templatize(req.llm_response);
 
-    // 4. Build cache entry
+    // 5. Build cache entry
     std::string entry_id = makeEntryId(req.signature_hash, req.query);
 
     cache::CacheEntry entry;
