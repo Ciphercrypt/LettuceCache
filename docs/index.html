@@ -9,7 +9,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js">
+function ddToggle(id, btn) {
+  const panel = document.getElementById('dd-' + id);
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  btn.classList.toggle('open', !isOpen);
+}
+
+</script>
 <style>
 :root{
   --bg:#080d1a;--bg2:#0d1526;--bg3:#111c30;--border:#1e2d45;
@@ -333,6 +341,50 @@ strong{color:var(--text);font-weight:600}
 .hero-logo-wrap{margin-bottom:28px}
 .hero-logo{width:96px;height:96px;filter:drop-shadow(0 0 24px rgba(16,185,129,.45)) drop-shadow(0 0 8px rgba(16,185,129,.25))}
 .hero-logo svg{width:100%;height:100%}
+
+/* ── Deep Dive / Accordion ── */
+.dd-wrap{margin:12px 0}
+.dd-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;
+  background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.22);
+  border-radius:6px;font-size:12px;font-weight:600;color:#818cf8;cursor:pointer;
+  transition:all .15s;user-select:none}
+.dd-btn:hover{background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.4)}
+.dd-btn .dd-arrow{transition:transform .2s;font-style:normal;font-size:10px}
+.dd-btn.open .dd-arrow{transform:rotate(90deg)}
+.dd-panel{display:none;margin-top:10px;background:rgba(8,13,26,.6);
+  border:1px solid rgba(99,102,241,.15);border-radius:10px;
+  padding:20px 22px;font-size:13px;line-height:1.75;color:var(--text2)}
+.dd-panel.open{display:block;animation:ddSlide .2s ease}
+@keyframes ddSlide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.dd-panel code{font-size:11.5px;color:var(--cyan);background:rgba(34,211,238,.08);
+  padding:1px 5px;border-radius:3px}
+.dd-panel strong{color:var(--text)}
+.dd-panel .dd-math{font-family:"JetBrains Mono",monospace;font-size:12px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:10px 14px;margin:8px 0;color:var(--green);line-height:1.9}
+.dd-panel .dd-file{display:inline-block;font-family:"JetBrains Mono",monospace;
+  font-size:11px;color:var(--cyan);background:rgba(34,211,238,.06);
+  padding:1px 6px;border-radius:3px;border:1px solid rgba(34,211,238,.15)}
+.dd-panel ul{padding-left:18px;margin:6px 0}
+.dd-panel ul li{margin-bottom:4px}
+
+/* ── Tooltip ── */
+.tip{position:relative;border-bottom:1px dashed var(--text3);cursor:help}
+.tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);
+  left:50%;transform:translateX(-50%);background:#0d1526;border:1px solid var(--border);
+  border-radius:7px;padding:7px 11px;font-size:12px;color:var(--text);white-space:nowrap;
+  pointer-events:none;opacity:0;transition:opacity .15s;z-index:999;
+  font-style:normal;max-width:280px;white-space:normal;line-height:1.5}
+.tip:hover::after{opacity:1}
+
+/* ── Section badge ── */
+.section-meta{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.s-badge{padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.5px}
+.s-badge.cpp{background:rgba(34,211,238,.1);color:var(--cyan);border:1px solid rgba(34,211,238,.2)}
+.s-badge.algo{background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.2)}
+.s-badge.paper{background:rgba(251,146,60,.1);color:var(--orange);border:1px solid rgba(251,146,60,.2)}
+.s-badge.new{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+
 </style>
 </head>
 <body>
@@ -583,6 +635,40 @@ strong{color:var(--text);font-weight:600}
       <p>In-process · IVF+PQ index · metadata sidecar (<code>.meta.json</code>) survives restarts</p>
     </div>
   </div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('pflxrwarch',this)">
+    <span>ℹ</span> How components are wired (composition root) <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-pflxrwarch">
+<strong>Composition root:</strong> <span class="dd-file">src/api/HttpServer.cpp</span> owns every component
+as a <code>unique_ptr</code> and constructs them in dependency order.
+Nothing else uses <code>new</code> — all cross-component communication is via references.
+<ul>
+  <li><strong>TurboQuantizer</strong> is created first (if enabled) — FaissVectorStore and ValidationService both receive a raw pointer to it.</li>
+  <li><strong>IntelligentAdmissionPolicy</strong> receives a reference to FaissVectorStore (for novelty search).</li>
+  <li><strong>QueryOrchestrator</strong> receives a reference to the policy to record cache hits for adaptive threshold updates.</li>
+  <li>Destruction order: <code>svr_</code> → <code>builder_</code> → everything else (FAISS persist on destructor).</li>
+</ul>
+<div class="dd-math">HttpServer owns: tq_ → redis_ → faiss_ → embedder_
+  → llm_ → validator_ → admission_ → policy_
+  → quality_filter_ → templatizer_ → builder_
+  → orchestrator_ → svr_</div>
+</div>
+</div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('anajeithread',this)">
+    <span>ℹ</span> Thread safety model <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-anajeithread">
+<ul>
+  <li><span class="dd-file">FaissVectorStore</span>: <code>std::shared_mutex</code> — concurrent <code>search()</code> calls (shared lock), exclusive <code>add()</code>/<code>remove()</code>/<code>persist()</code>.</li>
+  <li><span class="dd-file">CacheBuilderWorker</span>: single background thread with <code>std::condition_variable</code> queue. <code>enqueue()</code> is the only method called from the hot path — it acquires a brief mutex, pushes, and notifies.</li>
+  <li><span class="dd-file">EmbeddingClient</span>: <code>std::mutex curl_mutex_</code> around the persistent CURL handle.</li>
+  <li><span class="dd-file">RedisCacheAdapter</span>: single <code>redisContext*</code> with no mutex — <strong>open bug</strong>. Concurrent requests race; a connection pool or per-call mutex is needed.</li>
+  <li><span class="dd-file">IntelligentAdmissionPolicy</span>: two separate mutexes — <code>freq_mutex_</code> and <code>domain_mutex_</code> — to avoid contention between frequency updates and domain stats reads.</li>
+</ul>
+</div>
+</div>
 </section>
 
 <!-- ══════════════════════════════ HOW IT WORKS ══════════════════════════════ -->
@@ -644,6 +730,41 @@ strong{color:var(--text);font-weight:600}
     <div class="callout-icon">⚡</div>
     <p><strong>Writes never block reads.</strong> The <code>CacheBuilderWorker</code> runs on a dedicated background thread with a <code>std::condition_variable</code> queue. The orchestrator calls <code>enqueue()</code> and returns the HTTP response immediately.</p>
   </div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('nyolizsig',this)">
+    <span>ℹ</span> Signature hash construction (step-by-step) <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-nyolizsig">
+<strong>Input:</strong> query text, context[] array, domain string, user_id string<br><br>
+<strong>Step 1 — intent extraction</strong> (<span class="dd-file">ContextBuilder.cpp:extractIntent()</span>):<br>
+Lowercase → strip non-alphanumeric → skip 34 stopwords → take first 3 tokens → join with <code>_</code>.
+<div class="dd-math">"What is machine learning?" → "machine_learning"
+"How do I reset my password?" → "reset_password"</div>
+<strong>Step 2 — user anonymisation</strong>: <code>SHA-256("user:" + user_id)[:16]</code> — never stores raw identity.<br><br>
+<strong>Step 3 — context canonicalisation</strong>: <code>std::sort(context_turns)</code> — reversed order produces same hash.<br><br>
+<strong>Step 4 — signature</strong>:
+<div class="dd-math">SHA-256( intent + ":" + domain + ":" + user_scope + ":" + sorted_context_joined )</div>
+This 64-char hex string is the Redis L1 key suffix and the <code>context_signature</code> on each FAISS entry.
+</div>
+</div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('gzzixdtpl',this)">
+    <span>ℹ</span> Templatizer: strip PII then fill slots on serve <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-gzzixdtpl">
+<strong>On cache write</strong> (<span class="dd-file">Templatizer::templatize()</span>):<br>
+Tokenise response → for each token, classify:
+<ul>
+  <li><code>isNumeric</code>: regex <code>^-?\d+(\.\d+)?%?$</code></li>
+  <li><code>looksLikeDate</code>: regex for YYYY-MM-DD / DD/MM/YYYY patterns</li>
+  <li><code>looksLikeUUID</code>: 8-4-4-4-12 hex pattern</li>
+  <li><code>looksLikeProperNoun</code>: starts uppercase, rest lowercase, length &gt; 3, not in common-word blocklist</li>
+</ul>
+High-entropy tokens → replaced with <code>{{SLOT_N}}</code>. Slot values stored in Redis at <code>lc:slots:{entry_id}</code>.<br><br>
+<strong>On L2 serve</strong> (<span class="dd-file">QueryOrchestrator.cpp</span>):<br>
+Read <code>lc:slots:{entry_id}</code> → parse JSON array → <code>Templatizer::render(template, slot_values)</code> → fills placeholders back in. Falls back to raw template if slots have expired.
+</div>
+</div>
 </section>
 
 <!-- ══════════════════════════════ VALIDATION ══════════════════════════════ -->
@@ -712,6 +833,22 @@ strong{color:var(--text);font-weight:600}
     <div class="callout-icon">⚡</div>
     <p><strong>TurboQuant-corrected scoring.</strong> With <code>ENABLE_TURBO_QUANT=1</code>, the cosine term uses the unbiased inner-product estimator: <code>E[TQ_ip(y, encode(x))] = ⟨y, x⟩</code>. This is critical — at 1-bit MSE alone, every cosine score would be scaled by 2/π ≈ 0.64, making 0.85 unreachable. TurboQuant_prod eliminates this bias entirely.</p>
   </div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('esjryqval',this)">
+    <span>ℹ</span> ValidationService source code walk-through <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-esjryqval">
+<span class="dd-file">src/validation/ValidationService.cpp</span><br><br>
+<strong>Two paths for cosine similarity:</strong><br>
+<ul>
+  <li><strong>TurboQuant path</strong>: if <code>tq_ != nullptr</code> and <code>candidate.tq_codes</code> is non-empty → calls <code>tq_->inner_product(query_embedding, tq_codes)</code>. Returns unbiased estimate E[result] = ⟨y,x⟩.</li>
+  <li><strong>Fast dot-product path</strong>: embeddings are L2-normalised by the Python sidecar, so cosine = dot product. The original <code>sqrt(norm_a) * sqrt(norm_b)</code> computation was always computing sqrt(1)×sqrt(1) = 1 — eliminated.</li>
+</ul>
+<strong>Composite score:</strong>
+<div class="dd-math">score = 0.60 × cosine + 0.25 × (sig_hash match ? 1 : 0) + 0.15 × (domain match ? 1 : 0)</div>
+A context mismatch alone caps the maximum achievable score at <strong>0.75</strong> — safely below the 0.85 threshold, making false hits across conversation contexts structurally impossible.
+</div>
+</div>
 </section>
 
 <!-- ══════════════════════════════ CONTEXT SIGNATURES ══════════════════════════════ -->
@@ -772,6 +909,18 @@ strong{color:var(--text);font-weight:600}
     <div class="callout-icon">⚠️</div>
     <p><strong>Context mismatch caps score at 0.75.</strong> The context term (weight 0.25) contributes a maximum of 0.25 on match. On mismatch: max score = 0.60×1.0 + 0.0 + 0.15×1.0 = 0.75 — safely below the 0.85 threshold. The cache <em>cannot</em> serve a false hit across context boundaries regardless of embedding similarity.</p>
   </div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('jvbryuctx',this)">
+    <span>ℹ</span> Why context ordering doesn't matter (canonicalization fix) <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-jvbryuctx">
+<strong>Old behaviour (bug):</strong> <code>["user: hi", "bot: hello"]</code> and <code>["bot: hello", "user: hi"]</code> produced different SHA-256 hashes → same conversation, two cache entries.<br><br>
+<strong>Fix</strong> (<span class="dd-file">ContextBuilder.cpp</span>):
+<div class="dd-math">canonical_context = std::sort(context_turns)   // lexicographic
+signature = SHA-256(intent:domain:scope:canonical_joined)</div>
+Sorted turns → same hash regardless of order. The original <code>std::find</code> over a 34-element <code>vector</code> for stopword lookup was also replaced with an <code>std::unordered_set</code> for O(1) lookup.
+</div>
+</div>
 </section>
 
 <!-- ══════════════════════════════ ADMISSION CONTROL ══════════════════════════════ -->
@@ -807,6 +956,28 @@ strong{color:var(--text);font-weight:600}
     <div class="callout-icon">🗜</div>
     <p><strong>Templatizer runs after admission.</strong> When admitted, <code>Templatizer</code> replaces high-entropy tokens (UUIDs, dates, numbers, proper nouns) with <code>{{SLOT_N}}</code> placeholders. At serve time, slot values are restored from Redis (<code>lc:slots:{entry_id}</code>). This makes cached responses reusable across minor surface variations.</p>
   </div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('lzysexadm',this)">
+    <span>ℹ</span> Intelligent Admission: Cache Value Function (CVF) — full algorithm <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-lzysexadm">
+<strong>File:</strong> <span class="dd-file">src/builder/IntelligentAdmissionPolicy.cpp</span><br><br>
+<strong>Pipeline in CacheBuilderWorker::processEntry():</strong>
+<ol style="padding-left:18px;margin:8px 0">
+  <li>Size gate (AdmissionController) — fast reject oversized/empty</li>
+  <li>ResponseQualityFilter — hard reject conversational, session-bound, refusals, dynamic content</li>
+  <li><strong>CVF decision</strong> (IntelligentAdmissionPolicy)</li>
+</ol>
+<strong>CVF signals:</strong>
+<div class="dd-math">frequency  = 1 - exp(-Σ exp(-λ·age_i))   λ = ln2/120s (half-life)
+cost       = sigmoid((tokens × tier - 150) / 350)
+             tier: gpt-4o=3.0 · gpt-4o-mini=1.0 · gpt-3.5=0.4
+novelty    = 1 - max_cosine(new_emb, faiss_top1)
+             cosine &gt; 0.94 → hard-reject (near-duplicate)
+adaptive_threshold = base(0.42) ± 0.08 × domain_hit_rate_signal</div>
+<strong>Novel insight (literature gap):</strong> No existing LLM caching paper unifies all four signals. LettuceCache fills this gap — identified as open research in the survey (resources/Intelligent Cache Admission…).
+</div>
+</div>
 </section>
 
 <!-- ══════════════════════════════ TURBOQUANT ══════════════════════════════ -->
@@ -1011,6 +1182,21 @@ sign_bits = sign(S · r)  // d bits total</div>
     <p><strong>Enable:</strong> <code>ENABLE_TURBO_QUANT=1 ./build/lettucecache</code><br>
     TurboQuantizer is wired into <code>FaissVectorStore::add()</code> (auto-encodes every entry) and <code>ValidationService::score()</code> (uses unbiased inner product when <code>tq_codes</code> present). Seeds are deterministic (rotation=42, QJL=137) ensuring reproducible compression across restarts.</p>
   </div>
+<div class="dd-wrap">
+  <button class="dd-btn" onclick="ddToggle('vrggkvtq',this)">
+    <span>ℹ</span> RHT zero-padding fix: why we quantize padded_dim coordinates <span class="dd-arrow">▶</span>
+  </button>
+  <div class="dd-panel" id="dd-vrggkvtq">
+<strong>The bug (initial implementation):</strong> Walsh-Hadamard Transform on a 384-dim vector pads to 512 (next power of 2). After WHT, signal energy distributes across all 512 output coordinates. The original code quantized only the first 384 — discarding energy in the remaining 128.<br><br>
+<strong>Symptom:</strong> MSE of 0.233 for d=384 vs theoretical bound of 0.133.<br><br>
+<strong>Fix</strong> (<span class="dd-file">TurboQuantizer.cpp</span>):
+<div class="dd-math">// Before (bug):  loop j in 0..dim_       → only 384 coords
+// After (fix):   loop j in 0..padded_dim_ → all 512 coords
+mse_bytes = (padded_dim_ * mse_bits + 7) / 8   // 192 bytes not 144
+sqrt_n = sqrt(padded_dim_)                       // 512 not 384</div>
+After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 244 bytes/vector (4 norm + 192 MSE + 48 QJL).
+</div>
+</div>
 </section>
 
 <!-- ══════════════════════════════ API ══════════════════════════════ -->

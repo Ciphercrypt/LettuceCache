@@ -1,7 +1,8 @@
 #include "Templatizer.h"
-#include <sstream>
-#include <regex>
 #include <algorithm>
+#include <regex>
+#include <sstream>
+#include <unordered_set>
 #include <spdlog/spdlog.h>
 
 namespace lettucecache::builder {
@@ -51,8 +52,24 @@ bool Templatizer::looksLikeUUID(const std::string& token) {
 
 bool Templatizer::looksLikeProperNoun(const std::string& token) {
     if (token.size() < 2) return false;
-    // Heuristic: starts with uppercase, rest lowercase, length > 3
     if (!std::isupper(static_cast<unsigned char>(token[0]))) return false;
+
+    // Common English words that begin sentences or appear capitalised in
+    // natural text — never slot-worthy proper nouns.
+    static const std::unordered_set<std::string> COMMON_WORDS = {
+        "The","This","That","These","Those","A","An",
+        "Your","My","Our","Their","His","Her","Its",
+        "You","We","They","He","She","It","I",
+        "What","Which","Who","Whom","Whose","When","Where","Why","How",
+        "There","Here","Then","Now","Please","Note","Also","Just",
+        "However","Therefore","Thus","Hence","Furthermore","Moreover",
+        "Yes","No","Sure","Okay","Thanks","Thank","Hello","Hi",
+        "First","Second","Third","Finally","Lastly","Next","Last",
+        "In","At","On","By","For","With","From","To","Of","As",
+        "And","But","Or","If","So","Yet","Nor",
+    };
+    if (COMMON_WORDS.count(token)) return false;
+
     bool rest_lower = true;
     for (size_t i = 1; i < token.size(); ++i) {
         if (!std::islower(static_cast<unsigned char>(token[i])) &&
