@@ -453,9 +453,9 @@ strong{color:var(--text);font-weight:600}
   <h1><span class="hero-gradient">LettuceCache</span></h1>
   <p class="hero-sub">Context-aware semantic cache for LLMs. Stops redundant API calls without false hits - because the same question means different things in different conversations.</p>
   <div class="metrics">
-    <span class="metric-pill">⚡ &lt;1ms L1 hit</span>
-    <span class="metric-pill">🎯 &lt;30ms L2 hit</span>
-    <span class="metric-pill">🚀 37× faster than LLM</span>
+    <span class="metric-pill">⚡ 1–3ms L1 hit</span>
+    <span class="metric-pill">🎯 25–60ms L2 hit</span>
+    <span class="metric-pill">🚀 ~15× faster than LLM</span>
     <span class="metric-pill">🔒 Context-isolated</span>
   </div>
 
@@ -467,7 +467,7 @@ strong{color:var(--text);font-weight:600}
       <div class="t-out">{ "cache_hit": <span class="t-miss">false</span>, "latency_ms": <span class="t-miss">843</span>, "answer": "Items can be returned within 30 days..." }</div>
       <div style="margin-top:12px"><span class="t-comment"># Second call - served from cache instantly</span></div>
       <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"ecommerce"}'</span></div>
-      <div class="t-out">{ "cache_hit": <span class="t-hit">true</span>, "confidence": 0.94, "latency_ms": <span class="t-hit">22</span>, "answer": "Items can be returned within 30 days..." }</div>
+      <div class="t-out">{ "cache_hit": <span class="t-hit">true</span>, "confidence": 0.94, "latency_ms": <span class="t-hit">47</span>, "answer": "Items can be returned within 30 days..." }</div>
       <div style="margin-top:12px"><span class="t-comment"># Same query, different context - correctly misses</span></div>
       <div><span class="t-prompt">$</span> <span class="t-cmd">curl -X POST :8080/query -d '{"query":"What is the return policy?","domain":"fitness"}'</span></div>
       <div class="t-out">{ "cache_hit": <span class="t-miss">false</span>, "latency_ms": <span class="t-miss">761</span>, "answer": "Our gym membership cancellation policy..." }</div>
@@ -494,9 +494,11 @@ strong{color:var(--text);font-weight:600}
   <table class="compare-table">
     <thead><tr><th>Metric</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td>L1 cache latency (Redis)</td><td class="check">&lt; 1 ms</td></tr>
-      <tr><td>L2 cache latency (FAISS + TurboQuant)</td><td class="check">5-10 ms</td></tr>
-      <tr><td>End-to-end cache hit</td><td class="check">&lt; 30 ms</td></tr>
+      <tr><td>L1 cache latency (Redis exact match)</td><td class="check">1–3 ms</td></tr>
+      <tr><td>L2 embedding latency (Python sidecar, CPU)</td><td class="check">20–50 ms</td></tr>
+      <tr><td>L2 FAISS search latency</td><td class="check">1–3 ms</td></tr>
+      <tr><td>End-to-end L1 hit</td><td class="check">1–3 ms</td></tr>
+      <tr><td>End-to-end L2 hit</td><td class="check">25–60 ms</td></tr>
       <tr><td>LLM call baseline</td><td style="color:var(--orange)">500-2000 ms</td></tr>
       <tr><td>Validation threshold</td><td style="color:var(--text)">0.85 (configurable)</td></tr>
       <tr><td>Embedding model</td><td style="color:var(--text)">all-MiniLM-L6-v2 (384 dims)</td></tr>
@@ -535,7 +537,7 @@ strong{color:var(--text);font-weight:600}
       <div class="flow-box green-box">
         <div class="fb-icon">⚡</div>
         <div class="fb-title">L1 · Redis</div>
-        <div class="fb-sub">exact hash · &lt;1ms</div>
+        <div class="fb-sub">exact hash · 1–3ms</div>
       </div>
       <div class="flow-arrow-branch">
         <div class="branch-hit green">✓ HIT → return</div>
@@ -550,7 +552,7 @@ strong{color:var(--text);font-weight:600}
       <div class="flow-box blue-box">
         <div class="fb-icon">🔍</div>
         <div class="fb-title">L2 · FAISS</div>
-        <div class="fb-sub">ANN top-5 · 5-10ms</div>
+        <div class="fb-sub">ANN top-5 · 1–3ms</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-box blue-box">
@@ -685,21 +687,21 @@ Nothing else uses <code>new</code> - all cross-component communication is via re
     <div class="flow-step">
       <div class="step-num">3</div>
       <div class="step-body">
-        <h3>L1 Redis lookup <span class="step-tag tag-green">&lt; 1ms</span></h3>
+        <h3>L1 Redis lookup <span class="step-tag tag-green">1–3ms</span></h3>
         <p>Looks up <code>lc:l1:{sig_hash}</code>. Hit returns instantly at confidence 1.0. Miss moves to the embedding step.</p>
       </div>
     </div>
     <div class="flow-step">
       <div class="step-num">4</div>
       <div class="step-body">
-        <h3>Embed query via Python sidecar <span class="step-tag tag-blue">~10ms</span></h3>
+        <h3>Embed query via Python sidecar <span class="step-tag tag-blue">20–50ms (CPU)</span></h3>
         <p>Calls <code>:8001/embed</code>, gets back 384 floats (L2-normalised). If the sidecar is down, a circuit breaker kicks in and falls through to the LLM instead of hanging.</p>
       </div>
     </div>
     <div class="flow-step">
       <div class="step-num">5</div>
       <div class="step-body">
-        <h3>FAISS search + ValidationService <span class="step-tag tag-blue">5-10ms</span></h3>
+        <h3>FAISS search + ValidationService <span class="step-tag tag-blue">1–3ms</span></h3>
         <p>Returns top-5 candidates. Each scored: <code>0.60×cosine + 0.25×ctx_match + 0.15×domain_match</code>. First candidate with score ≥ 0.85 wins. On hit: backfills L1 with the rendered response (slot placeholders filled).</p>
       </div>
     </div>
@@ -1236,7 +1238,7 @@ After fix: MSE &lt; 0.10 for d=384 (well within theoretical bound). Code size: 2
   "cache_hit": true,
   "confidence": 0.93,
   "cache_entry_id": "lc:l1:a3f2c1d8...",
-  "latency_ms": 18
+  "latency_ms": 45
 }</code></pre>
       <button class="copy-btn" onclick="copy(this)">Copy</button>
     </div>
@@ -1402,19 +1404,19 @@ cd LettuceCache</code></pre><button class="copy-btn" onclick="copy(this)">Copy</
       <div class="code-wrap"><pre><code class="language-json">{ "status": "ok", "redis": true, "embedding_sidecar": true, "faiss_entries": 0 }</code></pre></div>
     </div>
     <div class="qs-step">
-      <h3>First query - LLM called, result cached</h3>
+      <h3>First and second queries - LLM called (admission requires 2 appearances)</h3>
       <div class="code-wrap"><pre><code class="language-bash">curl -s -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is the capital of France?","domain":"geography"}' | jq .</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
       <div class="code-wrap"><pre><code class="language-json">{ "answer": "The capital of France is Paris.", "cache_hit": false, "latency_ms": 712 }</code></pre></div>
     </div>
     <div class="qs-step">
-      <h3>Same query - served from cache (37× faster)</h3>
-      <div class="code-wrap"><pre><code class="language-bash"># Send again - admission threshold met after 2nd hit, cache is populated
+      <h3>Third query - served from cache (~15× faster)</h3>
+      <div class="code-wrap"><pre><code class="language-bash"># Third call hits L2 cache (~45ms); subsequent identical calls hit L1 at ~2ms (~350× faster)
 curl -s -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is the capital of France?","domain":"geography"}' | jq .</code></pre><button class="copy-btn" onclick="copy(this)">Copy</button></div>
-      <div class="code-wrap"><pre><code class="language-json">{ "answer": "The capital of France is Paris.", "cache_hit": true, "confidence": 1.0, "latency_ms": 0 }</code></pre></div>
+      <div class="code-wrap"><pre><code class="language-json">{ "answer": "The capital of France is Paris.", "cache_hit": true, "confidence": 0.94, "latency_ms": 45 }</code></pre></div>
     </div>
     <div class="qs-step">
       <h3>Enable TurboQuant for compressed storage</h3>
