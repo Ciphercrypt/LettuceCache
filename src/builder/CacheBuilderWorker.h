@@ -20,7 +20,8 @@ struct CacheEntryRequest {
     std::vector<std::string> context;
     std::string domain;
     std::string user_id;
-    std::string signature_hash;
+    std::string signature_hash;       // full hash (L1 key component)
+    std::string context_fingerprint;  // context-only hash (stored in CacheEntry for L2)
     std::string llm_response;
     std::vector<float> embedding;
 };
@@ -62,7 +63,9 @@ private:
     void run();
     void processEntry(const CacheEntryRequest& req);
 
-    static constexpr int L1_TTL_SECONDS = 3600;
+    static constexpr int L1_TTL_SECONDS   = 3600;
+    // Slots outlive L1 so that L2 hits always have slot values available.
+    static constexpr int SLOT_TTL_SECONDS = L1_TTL_SECONDS * 2;
     static constexpr const char* STREAM_KEY = "lc:build:stream";
 };
 
