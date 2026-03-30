@@ -100,7 +100,7 @@ void CacheBuilderWorker::processEntry(const CacheEntryRequest& req) {
     // ── Stage 3: quality pre-filter (hard rejects — no need for CVF) ──────
     // Conversational, session-bound, refusals, and AI-identity responses are
     // rejected here before the more expensive CVF computation.
-    auto quality = quality_filter_.evaluate(req.llm_response, req.query);
+    auto quality = quality_filter_.evaluate(req.llm_response, req.query, req.domain);
     if (!quality.should_cache) {
         spdlog::info("CacheBuilder: quality rejected sig={} score={:.2f} [{}]",
                      req.signature_hash, quality.score, quality.reason);
@@ -134,21 +134,30 @@ void CacheBuilderWorker::processEntry(const CacheEntryRequest& req) {
     cache::CacheEntry entry;
     entry.id                = entry_id;
     entry.embedding         = req.embedding;
-    entry.context_signature = req.signature_hash;
+    // context_signature stores the context_fingerprint (no query intent) so L2
+    // validation allows paraphrased queries in the same deployment context to hit.
+    entry.context_signature = req.context_fingerprint;
+    // signature_hash stores the full key so DELETE can reconstruct lc:l1:{hash}.
+    entry.signature_hash    = req.signature_hash;
     entry.template_str      = tpl_result.templ;
     entry.domain            = req.domain;
 
-    // 5. Store serialized slot values in Redis alongside L1 key
+    // 5 & 6. Write slot values and L1 key atomically via MULTI/EXEC.
+    // Slots get 2× the L1 TTL so they always outlive their L1 entry.
+    // An L2 hit after L1 expiry still finds slot values; no {{SLOT_N}} leaks.
     nlohmann::json slot_json = tpl_result.slot_values;
-    std::string slot_key = "lc:slots:" + entry_id;
-    redis_.set(slot_key, slot_json.dump(), L1_TTL_SECONDS);
-
-    // 6. Write L1: exact response for this signature
-    std::string l1_key = "lc:l1:" + req.signature_hash;
-    redis_.set(l1_key, req.llm_response, L1_TTL_SECONDS);
+    std::string slot_key = "lc:slots:" + req.domain + ":" + entry_id;
+    std::string l1_key   = "lc:l1:" + req.signature_hash;
+    redis_.multiSet({
+        {slot_key, slot_json.dump(), SLOT_TTL_SECONDS},
+        {l1_key,   req.llm_response, L1_TTL_SECONDS}
+    });
 
     // 7. Add to FAISS L2
     faiss_.add(entry);
+
+    // 8. Register in domain index for bulk invalidation (DELETE /cache/domain/:domain)
+    redis_.sadd("lc:domain_idx:" + req.domain, entry_id);
 
     spdlog::info("CacheBuilder: stored entry_id={} sig={} domain={}",
                  entry_id, req.signature_hash, req.domain);
