@@ -87,18 +87,29 @@ The first call hits the LLM:
 }
 ```
 
-Send the same query again:
+The second call still hits the LLM (admission requires 2 appearances before an entry is cached):
+
+```json
+{
+  "answer": "The capital of France is Paris.",
+  "cache_hit": false,
+  "confidence": 0.0,
+  "latency_ms": 681
+}
+```
+
+Send it a third time — now it's served from cache:
 
 ```json
 {
   "answer": "The capital of France is Paris.",
   "cache_hit": true,
   "confidence": 0.94,
-  "latency_ms": 19
+  "latency_ms": 45
 }
 ```
 
-**37× faster on the second call.**
+**~15× faster once cached** (L2 semantic hit; subsequent identical calls hit L1 Redis at ~2 ms, ~340× faster).
 
 ---
 

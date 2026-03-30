@@ -50,7 +50,7 @@ LettuceCache solves this by encoding the full conversation context into every ca
 # Start everything
 docker compose up
 
-# First call — LLM is invoked, result cached
+# First and second calls — LLM invoked (admission requires 2 appearances before caching)
 curl -s -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{
@@ -65,7 +65,7 @@ curl -s -X POST http://localhost:8080/query \
 ```
 
 ```bash
-# Second call — served from cache
+# Third call — served from cache
 curl -s -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{

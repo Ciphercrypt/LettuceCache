@@ -74,17 +74,17 @@ docker compose up
 # Verify
 curl http://localhost:8080/health
 
-# First query (LLM called)
+# First and second queries (LLM called — admission requires 2 appearances)
 curl -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is machine learning?","domain":"tech"}'
 # → {"cache_hit": false, "latency_ms": 712, ...}
 
-# Second query (L1 cache hit)
+# Third query (L2 semantic hit; subsequent identical calls hit L1 at ~2ms)
 curl -X POST http://localhost:8080/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is machine learning?","domain":"tech"}'
-# → {"cache_hit": true, "confidence": 1.0, "latency_ms": 0, ...}
+# → {"cache_hit": true, "confidence": 0.94, "latency_ms": 45, ...}
 ```
 
 ---
