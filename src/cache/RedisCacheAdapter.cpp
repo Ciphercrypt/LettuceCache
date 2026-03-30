@@ -39,6 +39,7 @@ void RedisCacheAdapter::freeReply(redisReply* reply) {
 }
 
 std::optional<std::string> RedisCacheAdapter::get(const std::string& key) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     if (!ctx_ && !reconnect()) return std::nullopt;
 
     auto* reply = static_cast<redisReply*>(
@@ -57,6 +58,7 @@ bool RedisCacheAdapter::set(const std::string& key,
                               const std::string& value,
                               int ttl_seconds)
 {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     if (!ctx_ && !reconnect()) return false;
 
     auto* reply = static_cast<redisReply*>(
@@ -69,6 +71,7 @@ bool RedisCacheAdapter::set(const std::string& key,
 }
 
 bool RedisCacheAdapter::del(const std::string& key) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     if (!ctx_ && !reconnect()) return false;
 
     auto* reply = static_cast<redisReply*>(
@@ -81,6 +84,7 @@ bool RedisCacheAdapter::del(const std::string& key) {
 }
 
 bool RedisCacheAdapter::exists(const std::string& key) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     if (!ctx_ && !reconnect()) return false;
 
     auto* reply = static_cast<redisReply*>(
@@ -96,6 +100,7 @@ bool RedisCacheAdapter::xadd(const std::string& stream,
                                const std::string& field,
                                const std::string& value)
 {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     if (!ctx_ && !reconnect()) return false;
 
     auto* reply = static_cast<redisReply*>(
@@ -110,6 +115,7 @@ bool RedisCacheAdapter::xadd(const std::string& stream,
 std::vector<std::pair<std::string, std::string>> RedisCacheAdapter::xread(
     const std::string& stream, const std::string& last_id, int count)
 {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     std::vector<std::pair<std::string, std::string>> result;
     if (!ctx_ && !reconnect()) return result;
 
@@ -142,7 +148,77 @@ std::vector<std::pair<std::string, std::string>> RedisCacheAdapter::xread(
     return result;
 }
 
+bool RedisCacheAdapter::sadd(const std::string& set_key, const std::string& member) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
+    if (!ctx_ && !reconnect()) return false;
+    auto* reply = static_cast<redisReply*>(
+        redisCommand(ctx_, "SADD %s %s", set_key.c_str(), member.c_str()));
+    bool ok = (reply != nullptr) && (reply->type == REDIS_REPLY_INTEGER);
+    freeReply(reply);
+    return ok;
+}
+
+std::vector<std::string> RedisCacheAdapter::smembers(const std::string& set_key) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
+    std::vector<std::string> result;
+    if (!ctx_ && !reconnect()) return result;
+    auto* reply = static_cast<redisReply*>(
+        redisCommand(ctx_, "SMEMBERS %s", set_key.c_str()));
+    if (reply && reply->type == REDIS_REPLY_ARRAY) {
+        for (size_t i = 0; i < reply->elements; ++i) {
+            result.emplace_back(reply->element[i]->str,
+                                static_cast<size_t>(reply->element[i]->len));
+        }
+    }
+    freeReply(reply);
+    return result;
+}
+
+bool RedisCacheAdapter::srem(const std::string& set_key, const std::string& member) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
+    if (!ctx_ && !reconnect()) return false;
+    auto* reply = static_cast<redisReply*>(
+        redisCommand(ctx_, "SREM %s %s", set_key.c_str(), member.c_str()));
+    bool ok = (reply != nullptr) && (reply->type == REDIS_REPLY_INTEGER);
+    freeReply(reply);
+    return ok;
+}
+
+bool RedisCacheAdapter::setTombstone(const std::string& entry_id, int ttl_seconds) {
+    return set("lc:tomb:" + entry_id, "1", ttl_seconds);
+}
+
+bool RedisCacheAdapter::isTombstoned(const std::string& entry_id) {
+    return exists("lc:tomb:" + entry_id);
+}
+
+bool RedisCacheAdapter::multiSet(const std::vector<KVEntry>& entries) {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
+    if (!ctx_ && !reconnect()) return false;
+
+    auto* multi = static_cast<redisReply*>(redisCommand(ctx_, "MULTI"));
+    if (!multi) { reconnect(); return false; }
+    bool ok = (multi->type == REDIS_REPLY_STATUS);
+    freeReply(multi);
+    if (!ok) return false;
+
+    for (const auto& e : entries) {
+        auto* r = static_cast<redisReply*>(
+            redisCommand(ctx_, "SETEX %s %d %b",
+                         e.key.c_str(), e.ttl_seconds,
+                         e.value.data(), e.value.size()));
+        // Inside MULTI each SETEX returns QUEUED — discard
+        freeReply(r);
+    }
+
+    auto* exec = static_cast<redisReply*>(redisCommand(ctx_, "EXEC"));
+    bool exec_ok = (exec != nullptr) && (exec->type == REDIS_REPLY_ARRAY);
+    freeReply(exec);
+    return exec_ok;
+}
+
 bool RedisCacheAdapter::ping() {
+    std::lock_guard<std::mutex> lock(redis_mutex_);
     if (!ctx_ && !reconnect()) return false;
     auto* reply = static_cast<redisReply*>(redisCommand(ctx_, "PING"));
     bool ok = (reply != nullptr) && (reply->type == REDIS_REPLY_STATUS);
