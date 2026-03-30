@@ -1,6 +1,6 @@
 # 🥬 LettuceCache
 
-**Context-aware semantic cache for LLMs.** Sits in front of OpenAI (or any LLM) and returns cached responses in under 30 ms — without false hits, even when identical queries mean different things in different conversations.
+**Context-aware semantic cache for LLMs.** Sits in front of OpenAI (or any LLM) and returns cached responses in 1–60 ms — without false hits, even when identical queries mean different things in different conversations.
 
 [![Tests](https://img.shields.io/badge/tests-52%2F52-brightgreen)](#testing)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)](#building)
@@ -26,16 +26,16 @@ POST /query
   ↓
 ContextBuilder  →  SHA-256(intent : domain : anon_user_scope : sorted_context)
   ↓
-[L1] Redis exact-match lookup                    <1 ms    → HIT: return
+[L1] Redis exact-match lookup                    1–3 ms   → HIT: return
   ↓ miss
-EmbeddingClient  →  Python sidecar (all-MiniLM-L6-v2, 384-dim)
+EmbeddingClient  →  Python sidecar (all-MiniLM-L6-v2, 384-dim)   20–50 ms (CPU)
   ↓
-[L2] FAISS IVF+PQ ANN search (top-5)            5–10 ms
+[L2] FAISS IVF+PQ ANN search (top-5)            1–3 ms
   ↓
 ValidationService  →  0.60·cosine + 0.25·ctx + 0.15·domain ≥ 0.85
   (with TurboQuant: unbiased inner-product estimation — ENABLE_TURBO_QUANT=1)
   ↓ miss
-  → HIT: Templatizer::render() fills {{SLOT_N}}, backfill L1, return  <30 ms
+  → HIT: Templatizer::render() fills {{SLOT_N}}, backfill L1, return  25–60 ms
 LLM call (OpenAI gpt-4o-mini)                    500–2000 ms
   ↓ async (never blocks response)
 CacheBuilderWorker
@@ -52,7 +52,7 @@ CacheBuilderWorker
 | Feature | Description |
 |---|---|
 | **Context isolation** | Same query from different conversations never cross-hits |
-| **Two-level cache** | L1 Redis exact match (<1 ms) + L2 FAISS semantic search (5–10 ms) |
+| **Two-level cache** | L1 Redis exact match (1–3 ms) + L2 embedding + FAISS semantic search (25–60 ms) |
 | **TurboQuant compression** | 7.8× embedding compression with provably unbiased inner products (arXiv:2504.19874) |
 | **Intelligent admission** | Multi-signal Cache Value Function: frequency × cost × quality × MMR novelty |
 | **Response quality filter** | Rejects conversational, session-bound, refusal, and time-sensitive responses |

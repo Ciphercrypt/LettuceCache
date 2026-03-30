@@ -46,7 +46,7 @@ Content-Type: application/json
   "cache_hit": true,
   "confidence": 0.93,
   "cache_entry_id": "lc:l1:a3f2c1...",
-  "latency_ms": 18
+  "latency_ms": 45
 }
 ```
 

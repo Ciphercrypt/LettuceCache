@@ -22,7 +22,7 @@ sequenceDiagram
     O->>R: GET lc:l1:{signature_hash}
     alt L1 hit
         R-->>O: cached answer
-        O-->>C: {answer, cache_hit: true, latency < 1ms}
+        O-->>C: {answer, cache_hit: true, latency ~2ms}
     else L1 miss
         O->>E: POST /embed {text: query}
         E-->>O: float[384]
@@ -32,7 +32,7 @@ sequenceDiagram
             O->>V: score(ctx, candidate)
             alt score ≥ 0.85
                 O->>R: SETEX lc:l1:{hash} (populate L1)
-                O-->>C: {answer, cache_hit: true, latency < 30ms}
+                O-->>C: {answer, cache_hit: true, latency ~45ms}
             end
         end
         O->>L: complete(query, context)
@@ -53,7 +53,7 @@ The first check is an exact key lookup in Redis. The key is:
 lc:l1:{SHA-256(intent:domain:anon_user_scope)}
 ```
 
-If the context signature and domain match exactly, the answer is returned in **< 1 ms** — no embedding, no vector search.
+If the context signature and domain match exactly, the answer is returned in **1–3 ms** — no embedding, no vector search.
 
 L1 is also populated retroactively: when L2 finds a hit, it writes the result into L1 so the next identical request never touches FAISS.
 

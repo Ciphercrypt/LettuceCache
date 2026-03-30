@@ -33,9 +33,11 @@ LettuceCache solves this by encoding the full conversation context into every ca
 
 | Metric | Value |
 |---|---|
-| L1 cache latency (Redis) | < 1 ms |
-| L2 cache latency (FAISS) | 5–10 ms |
-| End-to-end cache hit | **< 30 ms** |
+| L1 cache latency (Redis exact match) | 1–3 ms |
+| L2 embedding latency (Python sidecar, CPU) | 20–50 ms |
+| L2 FAISS search latency | 1–3 ms |
+| End-to-end L1 hit | **1–3 ms** |
+| End-to-end L2 hit | **25–60 ms** |
 | LLM call baseline | 500–2000 ms |
 | Validation threshold | 0.85 (configurable) |
 | Embedding model | `all-MiniLM-L6-v2` (384 dims) |
@@ -74,7 +76,7 @@ curl -s -X POST http://localhost:8080/query \
 ```
 
 ```json
-{ "cache_hit": true, "confidence": 0.94, "latency_ms": 22, "answer": "..." }
+{ "cache_hit": true, "confidence": 0.94, "latency_ms": 47, "answer": "..." }
 ```
 
 ```bash
@@ -100,11 +102,11 @@ curl -s -X POST http://localhost:8080/query \
 flowchart TD
     A([POST /query]) --> B[ContextBuilder]
     B --> C{L1: Redis\nexact hash}
-    C -- hit --> Z([Return under 1ms])
+    C -- hit --> Z([Return in 1–3 ms])
     C -- miss --> D[EmbeddingClient\nPython sidecar]
     D --> E{L2: FAISS\nIVF+PQ ANN}
     E --> F{ValidationService\nscore >= 0.85?}
-    F -- hit --> G([Return under 30ms])
+    F -- hit --> G([Return in 25–60 ms])
     F -- miss --> H[LLMAdapter\nOpenAI]
     H --> I([Return response])
     H --> J[Async enqueue]
