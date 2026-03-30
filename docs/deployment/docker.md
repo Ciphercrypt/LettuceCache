@@ -6,7 +6,7 @@ The quickest way to run LettuceCache in a fully containerised setup.
 
 ```yaml
 services:
-  redis           # Redis 7 — L1 store + async stream
+  redis           # Redis 7 — L1 exact-match store
   python_sidecar  # FastAPI embedding service on :8001
   orchestrator    # C++ HTTP server on :8080
 ```

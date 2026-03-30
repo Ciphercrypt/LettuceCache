@@ -7,12 +7,14 @@ After a cache miss and LLM response, the result is indexed asynchronously. This 
 ```mermaid
 flowchart LR
     A[QueryOrchestrator] -->|enqueue| B[CacheBuilderWorker\nbackground thread]
-    B --> C[AdmissionController\nfrequency gate]
-    C -->|admitted| D[Templatizer\nstrip high-entropy tokens]
-    D --> E[EmbeddingClient\nembed if not cached]
-    E --> F[FaissVectorStore.add]
-    E --> G[Redis SETEX\nhot entry]
-    C -->|rejected| H[discard]
+    B --> C[AdmissionController\nfrequency gate ≥2×/300s]
+    C -->|admitted| D[IntelligentAdmissionPolicy\nCVF scoring]
+    D -->|CVF above threshold| E[Templatizer\nstrip high-entropy tokens]
+    E --> F[EmbeddingClient\nembed if not cached]
+    F --> G[FaissVectorStore.add]
+    F --> H[Redis SETEX\nhot entry]
+    C -->|rejected| I[discard]
+    D -->|rejected| I
 ```
 
 ## CacheBuilderWorker
@@ -30,10 +32,6 @@ void CacheBuilderWorker::enqueue(const CacheEntryRequest& req) {
 ```
 
 The orchestrator calls `enqueue()` and returns the HTTP response immediately. The worker processes entries at its own pace.
-
-### Redis Stream Integration
-
-Each admitted entry is also published to the Redis Stream `cache:build:events`. This provides a durable audit trail and allows external consumers (e.g. analytics pipelines) to observe what was cached and when.
 
 ## Templatizer
 
@@ -63,8 +61,8 @@ After templatization:
 
 The templatized form is what gets stored in FAISS and returned on cache hits. This is intentional — the specific values (order number, email) belong to the original user and should not leak to other users' sessions.
 
-!!! warning "Template slot filling"
-    The current implementation stores and returns the templatized form. Slot re-filling (substituting the requesting user's values back in) is a planned Phase 4 feature.
+!!! warning "Slot filling is not yet implemented"
+    `Templatizer::render()` exists and is tested, but is not called in `QueryOrchestrator`. Cache hits currently return the raw templatized string — callers may receive responses containing `{{SLOT_N}}` placeholders. Slot re-filling is a known open gap.
 
 ## Deduplication
 
