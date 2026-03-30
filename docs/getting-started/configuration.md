@@ -11,8 +11,11 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `EMBED_URL` | `http://localhost:8001` | Python sidecar base URL |
 | `EMBED_DIM` | `384` | Embedding dimension — must match the model |
 | `OPENAI_API_KEY` | *(empty)* | OpenAI API key. If blank, the LLM adapter returns a stub response (useful for testing) |
+| `LLM_MODEL` | `gpt-4o-mini` | OpenAI chat model name passed to the LLM adapter |
 | `HTTP_PORT` | `8080` | Port the C++ server listens on |
 | `FAISS_INDEX_PATH` | `./faiss.index` | Path to persist and load the FAISS index on disk |
+| `ENABLE_TURBO_QUANT` | *(unset)* | Set to `1` to enable TurboQuantizer compression (7.8× smaller vectors, zero bias on cosine estimates) |
+| `CACHE_QUALITY_THRESHOLD` | `0.40` | Minimum `ResponseQualityFilter` score for a response to be admitted to the cache |
 
 ## Python Sidecar
 
