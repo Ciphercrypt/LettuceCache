@@ -33,7 +33,8 @@ public:
     void stop();
 
 private:
-    int http_port_;
+    int         http_port_;
+    std::string default_model_; // LLM model name; used as fallback for request.model
 
     // Owned components
     std::unique_ptr<quantization::TurboQuantizer>   tq_;   // nullptr = TQ disabled
