@@ -37,18 +37,22 @@ HttpServer::HttpServer(const std::string& redis_host,
     if (std::getenv("ENABLE_TURBO_QUANT") &&
         std::string(std::getenv("ENABLE_TURBO_QUANT")) == "1")
     {
+        const char* rot_env = std::getenv("TURBO_ROTATION_SEED");
+        const char* qjl_env = std::getenv("TURBO_QJL_SEED");
+        uint64_t rotation_seed = rot_env ? static_cast<uint64_t>(std::stoull(rot_env)) : 42ULL;
+        uint64_t qjl_seed      = qjl_env ? static_cast<uint64_t>(std::stoull(qjl_env)) : 137ULL;
         tq_ = std::make_unique<quantization::TurboQuantizer>(
-            static_cast<size_t>(embed_dim));
-        spdlog::info("TurboQuant enabled (dim={} code_size={} bytes)",
-                     embed_dim, tq_->code_size());
+            static_cast<size_t>(embed_dim), rotation_seed, qjl_seed);
+        spdlog::info("TurboQuant enabled (dim={} code_size={} bytes rot_seed={} qjl_seed={})",
+                     embed_dim, tq_->code_size(), rotation_seed, qjl_seed);
     }
     faiss_      = std::make_unique<cache::FaissVectorStore>(embed_dim, faiss_path,
                                                              tq_.get());
-    embedder_   = std::make_unique<embedding::EmbeddingClient>(embed_url);
+    embedder_   = std::make_unique<embedding::EmbeddingClient>(embed_url, embed_dim);
     const char* model_env = std::getenv("LLM_MODEL");
-    std::string llm_model = model_env ? model_env : "gpt-4o-mini";
-    llm_        = std::make_unique<llm::OpenAIAdapter>(openai_key, llm_model);
-    spdlog::info("  LLM model: {}", llm_model);
+    default_model_ = model_env ? model_env : "gpt-4o-mini";
+    llm_        = std::make_unique<llm::OpenAIAdapter>(openai_key, default_model_);
+    spdlog::info("  LLM model: {}", default_model_);
     validator_  = std::make_unique<validation::ValidationService>(0.85, tq_.get());
     admission_      = std::make_unique<builder::AdmissionController>(2, 300, 32768);
     policy_         = std::make_unique<builder::IntelligentAdmissionPolicy>(*faiss_);
@@ -81,6 +85,30 @@ void HttpServer::registerRoutes() {
             qreq.session_id     = body.value("session_id", "");
             qreq.domain         = body.value("domain", "general");
             qreq.correlation_id = body.value("correlation_id", "");
+
+            // ── LLM framing parameters ─────────────────────────────────────
+            qreq.system_prompt   = body.value("system_prompt", "");
+            qreq.response_format = body.value("response_format", "text");
+            qreq.tool_choice     = body.value("tool_choice", "");
+            // response_schema: present only for json_schema format
+            if (body.contains("response_schema") &&
+                body["response_schema"].is_object()) {
+                qreq.response_schema = body["response_schema"].dump();
+            }
+            // tools: JSON array of tool/function definitions
+            if (body.contains("tools") && body["tools"].is_array()) {
+                qreq.tools = body["tools"].dump();
+            }
+
+            // ── LLM distribution parameters ────────────────────────────────
+            qreq.temperature = body.value("temperature", 0.0f);
+            qreq.top_p       = body.value("top_p", 1.0f);
+            qreq.max_tokens  = body.value("max_tokens", 0);
+            // seed: -1 sentinel means "not provided"; treat null same as absent
+            if (body.contains("seed") && body["seed"].is_number_integer()) {
+                qreq.seed = body["seed"].get<int>();
+            }
+            qreq.model = body.value("model", default_model_);
 
             if (body.contains("context") && body["context"].is_array()) {
                 for (auto& c : body["context"]) {
@@ -134,10 +162,68 @@ void HttpServer::registerRoutes() {
         res.set_content(out.dump(), "application/json");
     });
 
+    // ── DELETE /cache/domain/:domain ──────────────────────────────────────
+    // Bulk-invalidates all cache entries for a domain. Useful when underlying
+    // data changes (e.g. fee schedule update, policy refresh).
+    // MUST be registered before /cache/(.+) — cpp-httplib matches in order.
+    svr_->Delete(R"(/cache/domain/(.+))",
+        [this](const httplib::Request& req, httplib::Response& res) {
+        std::string domain = req.matches[1].str();
+        std::string set_key = "lc:domain_idx:" + domain;
+        auto entry_ids = redis_->smembers(set_key);
+
+        int removed = 0;
+        for (const auto& eid : entry_ids) {
+            // Tombstone first so concurrent L2 reads skip the entry immediately.
+            redis_->setTombstone(eid);
+
+            // Look up entry metadata before removal to get the sig_hash
+            // (needed for the L1 key) and domain (needed for the slot key).
+            auto entry = faiss_->find(eid);
+            if (faiss_->remove(eid)) ++removed;
+
+            if (entry.has_value()) {
+                // L1 key is lc:l1:{sig_hash} — NOT lc:l1:{entry_id}
+                if (!entry->signature_hash.empty())
+                    redis_->del("lc:l1:" + entry->signature_hash);
+                // Slot key is lc:slots:{domain}:{entry_id}
+                redis_->del("lc:slots:" + entry->domain + ":" + eid);
+            }
+        }
+        redis_->del(set_key);
+
+        nlohmann::json out;
+        out["domain"]  = domain;
+        out["removed"] = removed;
+        res.set_content(out.dump(), "application/json");
+    });
+
     // ── DELETE /cache/:key ────────────────────────────────────────────────
+    // Tombstone-first pattern: write tombstone before removing from either
+    // store so that any concurrent L2 hit sees the tombstone and skips the
+    // entry. If the process crashes between the two remove calls the tombstone
+    // prevents the ghost FAISS entry from ever being served.
     svr_->Delete(R"(/cache/(.+))", [this](const httplib::Request& req, httplib::Response& res) {
         std::string key = req.matches[1].str();
-        bool ok = faiss_->remove(key) || redis_->del("lc:l1:" + key);
+
+        // Tombstone first so concurrent L2 reads skip the entry immediately.
+        redis_->setTombstone(key);
+
+        // Look up entry metadata before removal to get sig_hash (for L1 key)
+        // and domain (for slot key). Both are unavailable after removal.
+        auto entry = faiss_->find(key);
+        bool faiss_removed = faiss_->remove(key);
+
+        bool l1_removed = false;
+        if (entry.has_value()) {
+            // L1 key is lc:l1:{sig_hash}, NOT lc:l1:{entry_id}
+            if (!entry->signature_hash.empty())
+                l1_removed = redis_->del("lc:l1:" + entry->signature_hash);
+            // Slot key cleanup — prevents orphaned Redis memory
+            redis_->del("lc:slots:" + entry->domain + ":" + key);
+        }
+
+        bool ok = faiss_removed || l1_removed;
         nlohmann::json out;
         out["deleted"] = ok;
         out["key"]     = key;
