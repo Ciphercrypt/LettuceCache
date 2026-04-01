@@ -1,5 +1,6 @@
 #pragma once
 #include "IVectorStore.h"
+#include <optional>
 #include <faiss/IndexFlat.h>
 #include <faiss/IndexIVFPQ.h>
 #include <faiss/index_io.h>
@@ -8,6 +9,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <atomic>
 
 namespace lettucecache::quantization { class TurboQuantizer; }
 
@@ -21,7 +23,12 @@ struct CacheEntry {
     std::string          id;
     std::vector<float>   embedding;         // full-precision, used for FAISS add
     std::vector<uint8_t> tq_codes;          // TurboQuant codes (optional)
+    // context_signature: context_fingerprint (deployment context, no query intent).
+    // Used by ValidationService for L2 context matching.
     std::string          context_signature;
+    // signature_hash: full key (intent + all dims). Used by DELETE to reconstruct
+    // the correct lc:l1:{sig_hash} Redis key for cleanup.
+    std::string          signature_hash;
     std::string          template_str;
     std::string          domain;
     int64_t              faiss_id{-1};
@@ -49,6 +56,7 @@ public:
     // IVectorStore
     void add(const CacheEntry& entry) override;
     std::vector<CacheEntry> search(const std::vector<float>& query, int top_k = 5) override;
+    std::optional<CacheEntry> find(const std::string& entry_id) const override;
     bool   remove(const std::string& entry_id) override;
     void   persist() override;
     size_t size() const override;
@@ -60,9 +68,14 @@ private:
 
     quantization::TurboQuantizer* tq_;  // non-owning; nullptr = TQ disabled
 
-    std::unique_ptr<faiss::IndexFlatL2> quantizer_;
-    std::unique_ptr<faiss::IndexIVFPQ>  index_;
-    bool trained_{false};
+    // Phase 1: exact flat index used until MIN_IVF_TRAIN_VEC real vectors
+    // are available. IndexFlatIP gives perfect recall at low cardinality.
+    std::unique_ptr<faiss::IndexFlatIP> flat_index_;
+
+    // Phase 2: IVF+PQ ANN index — activated once training threshold is met
+    std::unique_ptr<faiss::IndexFlatL2> ivf_quantizer_;
+    std::unique_ptr<faiss::IndexIVFPQ>  ivf_index_;
+    bool ivf_trained_{false};
 
     std::unordered_map<int64_t, CacheEntry>   id_to_entry_;
     std::unordered_map<std::string, int64_t>  entry_id_to_faiss_id_;
@@ -71,13 +84,14 @@ private:
     // shared_mutex: N concurrent search() readers; exclusive add/remove/persist
     mutable std::shared_mutex rw_mutex_;
 
-    static constexpr int NLIST         = 100;
-    static constexpr int M_PQ          = 8;
-    static constexpr int NBITS         = 8;
-    static constexpr int NPROBE        = 10;
-    static constexpr int MIN_TRAIN_VEC = 256;
+    static constexpr int NLIST             = 100;
+    static constexpr int M_PQ              = 8;
+    static constexpr int NBITS             = 8;
+    static constexpr int NPROBE            = 10;
+    // 39 × NLIST — minimum real vectors for stable IVF cluster centroids
+    static constexpr int MIN_IVF_TRAIN_VEC = 39 * NLIST;  // 3900
 
-    void ensureTrained(const std::vector<float>& new_vec);
+    void migrateToIVF();   // called under exclusive lock when threshold crossed
     void loadFromDisk();
     void saveMetadata() const;
     void loadMetadata();
