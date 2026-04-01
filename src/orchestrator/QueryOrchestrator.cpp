@@ -30,10 +30,32 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
                  req.correlation_id, req.session_id, req.user_id, req.domain);
 
     // ── Step 1: Build context object and compute L1 key ──────────────────
+    CacheDimensions dims;
+    dims.system_prompt    = req.system_prompt;
+    dims.response_format  = req.response_format;
+    dims.response_schema  = req.response_schema;
+    dims.tools            = req.tools;
+    dims.tool_choice      = req.tool_choice;
+    dims.temperature      = req.temperature;
+    dims.top_p            = req.top_p;
+    dims.max_tokens       = req.max_tokens;
+    dims.seed             = req.seed;
+    dims.model            = req.model;
+
     ContextBuilder ctx_builder;
     ContextObject ctx = ctx_builder.build(req.query, req.context,
-                                           req.domain, req.user_id);
+                                           req.domain, req.user_id, dims);
     std::string l1_key = "lc:l1:" + ctx.signature_hash;
+
+    // ── Step 1b: Bypass cache for high-temperature requests ───────────────
+    // High-temperature outputs are stochastic one-offs. Caching them would
+    // pollute the index with responses that are unlikely to match future queries.
+    if (req.temperature >= HIGH_TEMP_THRESHOLD) {
+        spdlog::info("High-temp bypass temperature={:.1f} correlation_id={}",
+                     req.temperature, req.correlation_id);
+        std::string answer = llm_.complete(req.query, req.context);
+        return QueryResponse{answer, false, 0.0, "", elapsed()};
+    }
 
     // ── Step 2: L1 — Redis exact-match lookup ─────────────────────────────
     auto l1_result = redis_.get(l1_key);
@@ -60,12 +82,18 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
         spdlog::debug("L2 candidate id={} score={:.3f} correlation_id={}",
                       candidate.id, s, req.correlation_id);
 
-        if (s >= VALIDATION_THRESHOLD) {
+        if (s >= validator_.thresholdForDomain(ctx.domain)) {
+            // Skip entries that have been tombstoned by a concurrent DELETE.
+            if (redis_.isTombstoned(candidate.id)) {
+                spdlog::debug("L2 candidate id={} tombstoned, skipping", candidate.id);
+                continue;
+            }
+
             // Reconstruct the full response: read slot values from Redis and
             // call Templatizer::render() to fill {{SLOT_N}} placeholders.
             // Falls back to the raw template if slots are unavailable (e.g. expired).
             std::string rendered = candidate.template_str;
-            auto slots_json = redis_.get("lc:slots:" + candidate.id);
+            auto slots_json = redis_.get("lc:slots:" + candidate.domain + ":" + candidate.id);
             if (slots_json.has_value()) {
                 try {
                     auto slot_values =
@@ -96,13 +124,14 @@ QueryResponse QueryOrchestrator::process(const QueryRequest& req) {
 
     // ── Step 6: Async cache build ──────────────────────────────────────────
     builder::CacheEntryRequest build_req;
-    build_req.query          = req.query;
-    build_req.context        = req.context;
-    build_req.domain         = ctx.domain;
-    build_req.user_id        = req.user_id;
-    build_req.signature_hash = ctx.signature_hash;
-    build_req.llm_response   = answer;
-    build_req.embedding      = ctx.embedding;
+    build_req.query               = req.query;
+    build_req.context             = req.context;
+    build_req.domain              = ctx.domain;
+    build_req.user_id             = req.user_id;
+    build_req.signature_hash      = ctx.signature_hash;
+    build_req.context_fingerprint = ctx.context_fingerprint;
+    build_req.llm_response        = answer;
+    build_req.embedding           = ctx.embedding;
     builder_.enqueue(build_req);
 
     long long ms = elapsed();
