@@ -1,10 +1,10 @@
 #include "FaissVectorStore.h"
 #include "../quantization/TurboQuantizer.h"
 #include <faiss/impl/FaissException.h>
+#include <faiss/IndexFlat.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
-#include <cstdlib>
 #include <fstream>
 #include <stdexcept>
 
@@ -19,19 +19,22 @@ FaissVectorStore::FaissVectorStore(int dimension,
     : dim_(dimension), index_path_(index_path),
       meta_path_(index_path + ".meta.json"), tq_(tq)
 {
-    quantizer_ = std::make_unique<faiss::IndexFlatL2>(dim_);
-    index_     = std::make_unique<faiss::IndexIVFPQ>(
-        quantizer_.get(), dim_, NLIST, M_PQ, NBITS);
-    index_->nprobe = NPROBE;
+    // Phase 1: always start with an exact flat index for perfect recall
+    flat_index_    = std::make_unique<faiss::IndexFlatIP>(dim_);
+    // Phase 2 components — constructed but unused until migration
+    ivf_quantizer_ = std::make_unique<faiss::IndexFlatL2>(dim_);
+    ivf_index_     = std::make_unique<faiss::IndexIVFPQ>(
+        ivf_quantizer_.get(), dim_, NLIST, M_PQ, NBITS);
+    ivf_index_->nprobe = NPROBE;
 
     std::ifstream test(index_path_);
     if (test.good()) {
         test.close();
         try {
-            loadFromDisk();   // loads FAISS binary
-            loadMetadata();   // loads id_to_entry_ from sidecar JSON — fixes restart bug
-            spdlog::info("FaissVectorStore: loaded from disk, entries={}",
-                         id_to_entry_.size());
+            loadFromDisk();
+            loadMetadata();
+            spdlog::info("FaissVectorStore: loaded from disk, entries={} ivf={}",
+                         id_to_entry_.size(), ivf_trained_ ? "yes" : "flat");
         } catch (const std::exception& e) {
             spdlog::warn("FaissVectorStore: could not load from disk ({}); starting fresh.",
                          e.what());
@@ -49,34 +52,44 @@ FaissVectorStore::~FaissVectorStore() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// IVF training (called under exclusive lock from add())
+// migrateToIVF — called under exclusive lock when MIN_IVF_TRAIN_VEC crossed.
+// Trains IVF+PQ on all real vectors already in flat_index_, then bulk-adds them.
 // ──────────────────────────────────────────────────────────────────────────────
-void FaissVectorStore::ensureTrained(const std::vector<float>& new_vec) {
-    if (trained_) return;
+void FaissVectorStore::migrateToIVF() {
+    const size_t n = id_to_entry_.size();
+    spdlog::info("FaissVectorStore: migrating {} vectors from flat → IVF+PQ", n);
 
-    std::vector<float> train_data;
-    train_data.reserve((id_to_entry_.size() + 1) * static_cast<size_t>(dim_));
+    std::vector<float> all_vecs;
+    all_vecs.reserve(n * static_cast<size_t>(dim_));
+    std::vector<faiss::idx_t> all_ids;
+    all_ids.reserve(n);
+
     for (const auto& [fid, entry] : id_to_entry_) {
-        train_data.insert(train_data.end(),
-                          entry.embedding.begin(), entry.embedding.end());
-    }
-    train_data.insert(train_data.end(), new_vec.begin(), new_vec.end());
-
-    size_t n_vecs = train_data.size() / static_cast<size_t>(dim_);
-    while (n_vecs < static_cast<size_t>(MIN_TRAIN_VEC)) {
-        for (int d = 0; d < dim_; ++d)
-            train_data.push_back(static_cast<float>(std::rand()) /
-                                 static_cast<float>(RAND_MAX));
-        ++n_vecs;
+        all_vecs.insert(all_vecs.end(),
+                        entry.embedding.begin(), entry.embedding.end());
+        all_ids.push_back(fid);
     }
 
-    index_->train(static_cast<int64_t>(n_vecs), train_data.data());
-    trained_ = true;
-    spdlog::info("FaissVectorStore: IVF trained on {} vectors", n_vecs);
+    // Recreate IVF+PQ with fresh state (previous object may have been reset)
+    ivf_quantizer_ = std::make_unique<faiss::IndexFlatL2>(dim_);
+    ivf_index_     = std::make_unique<faiss::IndexIVFPQ>(
+        ivf_quantizer_.get(), dim_, NLIST, M_PQ, NBITS);
+    ivf_index_->nprobe = NPROBE;
+
+    ivf_index_->train(static_cast<int64_t>(n), all_vecs.data());
+    ivf_index_->add_with_ids(static_cast<int64_t>(n), all_vecs.data(),
+                              all_ids.data());
+    ivf_trained_ = true;
+
+    // Flat index no longer needed; reset to free memory
+    flat_index_ = std::make_unique<faiss::IndexFlatIP>(dim_);
+
+    spdlog::info("FaissVectorStore: IVF+PQ migration complete, trained on {} vectors", n);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // add()  — exclusive write lock
+// Uses flat index below MIN_IVF_TRAIN_VEC; migrates to IVF+PQ when threshold crossed.
 // ──────────────────────────────────────────────────────────────────────────────
 void FaissVectorStore::add(const CacheEntry& entry) {
     std::unique_lock<std::shared_mutex> lock(rw_mutex_);
@@ -91,29 +104,41 @@ void FaissVectorStore::add(const CacheEntry& entry) {
         return;
     }
 
-    ensureTrained(entry.embedding);
-
     int64_t fid = next_id_++;
     CacheEntry stored = entry;
     stored.faiss_id   = fid;
     stored.created_at = static_cast<long long>(
         std::chrono::system_clock::now().time_since_epoch().count());
 
-    // Compute TurboQuant codes if TQ enabled and not already present
     if (tq_ && stored.tq_codes.empty()) {
         stored.tq_codes = tq_->encode(entry.embedding);
     }
 
-    index_->add_with_ids(1, entry.embedding.data(), &fid);
+    if (ivf_trained_) {
+        ivf_index_->add_with_ids(1, entry.embedding.data(), &fid);
+    } else {
+        flat_index_->add_with_ids(1, entry.embedding.data(), &fid);
+    }
+
     id_to_entry_[fid]               = std::move(stored);
     entry_id_to_faiss_id_[entry.id] = fid;
 
-    spdlog::debug("FaissVectorStore::add: id={} faiss_id={} tq={}",
-                  entry.id, fid, tq_ ? "yes" : "no");
+    // Trigger migration when the training threshold is first crossed
+    if (!ivf_trained_ &&
+        static_cast<int>(id_to_entry_.size()) >= MIN_IVF_TRAIN_VEC)
+    {
+        migrateToIVF();
+    }
+
+    spdlog::debug("FaissVectorStore::add: id={} faiss_id={} ivf={} tq={}",
+                  entry.id, fid,
+                  ivf_trained_ ? "yes" : "flat",
+                  tq_ ? "yes" : "no");
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // search()  — shared read lock (concurrent searches are allowed)
+// Routes to flat index or IVF+PQ based on current phase.
 // ──────────────────────────────────────────────────────────────────────────────
 std::vector<CacheEntry> FaissVectorStore::search(const std::vector<float>& query,
                                                    int top_k)
@@ -121,8 +146,8 @@ std::vector<CacheEntry> FaissVectorStore::search(const std::vector<float>& query
     std::shared_lock<std::shared_mutex> lock(rw_mutex_);
     std::vector<CacheEntry> results;
 
-    if (!trained_ || id_to_entry_.empty()) {
-        spdlog::debug("FaissVectorStore::search: index empty or untrained");
+    if (id_to_entry_.empty()) {
+        spdlog::debug("FaissVectorStore::search: index empty");
         return results;
     }
     if (static_cast<int>(query.size()) != dim_) {
@@ -136,7 +161,11 @@ std::vector<CacheEntry> FaissVectorStore::search(const std::vector<float>& query
     std::vector<float> distances(k, 0.0f);
 
     try {
-        index_->search(1, query.data(), k, distances.data(), labels.data());
+        if (ivf_trained_) {
+            ivf_index_->search(1, query.data(), k, distances.data(), labels.data());
+        } else {
+            flat_index_->search(1, query.data(), k, distances.data(), labels.data());
+        }
     } catch (const faiss::FaissException& e) {
         spdlog::error("FaissVectorStore::search FAISS exception: {}", e.what());
         return results;
@@ -153,6 +182,21 @@ std::vector<CacheEntry> FaissVectorStore::search(const std::vector<float>& query
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// find()  — shared read lock
+// Returns the CacheEntry for the given entry_id, or nullopt if not found.
+// Called before remove() so the DELETE handler can retrieve the sig_hash and
+// domain needed to clean up the corresponding Redis L1 and slot keys.
+// ──────────────────────────────────────────────────────────────────────────────
+std::optional<CacheEntry> FaissVectorStore::find(const std::string& entry_id) const {
+    std::shared_lock<std::shared_mutex> lock(rw_mutex_);
+    auto it = entry_id_to_faiss_id_.find(entry_id);
+    if (it == entry_id_to_faiss_id_.end()) return std::nullopt;
+    auto jt = id_to_entry_.find(it->second);
+    if (jt == id_to_entry_.end()) return std::nullopt;
+    return jt->second;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // remove()  — exclusive write lock
 // ──────────────────────────────────────────────────────────────────────────────
 bool FaissVectorStore::remove(const std::string& entry_id) {
@@ -163,7 +207,11 @@ bool FaissVectorStore::remove(const std::string& entry_id) {
 
     int64_t fid = it->second;
     faiss::IDSelectorBatch selector(1, &fid);
-    index_->remove_ids(selector);
+    if (ivf_trained_) {
+        ivf_index_->remove_ids(selector);
+    } else {
+        flat_index_->remove_ids(selector);
+    }
     id_to_entry_.erase(fid);
     entry_id_to_faiss_id_.erase(it);
 
@@ -173,15 +221,18 @@ bool FaissVectorStore::remove(const std::string& entry_id) {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // persist()  — exclusive write lock
-// Writes both the FAISS binary and the metadata JSON sidecar.
 // ──────────────────────────────────────────────────────────────────────────────
 void FaissVectorStore::persist() {
     std::unique_lock<std::shared_mutex> lock(rw_mutex_);
-    if (!trained_) return;
-    faiss::write_index(index_.get(), index_path_.c_str());
+    if (id_to_entry_.empty()) return;
+
+    faiss::Index* idx_to_write = ivf_trained_
+        ? static_cast<faiss::Index*>(ivf_index_.get())
+        : static_cast<faiss::Index*>(flat_index_.get());
+    faiss::write_index(idx_to_write, index_path_.c_str());
     saveMetadata();
-    spdlog::info("FaissVectorStore::persist: wrote {} and {}",
-                 index_path_, meta_path_);
+    spdlog::info("FaissVectorStore::persist: wrote {} and {} (ivf={})",
+                 index_path_, meta_path_, ivf_trained_ ? "yes" : "flat");
 }
 
 size_t FaissVectorStore::size() const {
@@ -190,9 +241,7 @@ size_t FaissVectorStore::size() const {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Metadata persistence — fixes the critical "L2 dead after restart" bug.
-// The FAISS binary only stores the ANN index, not the entry metadata.
-// We serialise id_to_entry_ to a JSON sidecar so lookups survive restarts.
+// Metadata persistence
 // ──────────────────────────────────────────────────────────────────────────────
 void FaissVectorStore::saveMetadata() const {
     static constexpr char kHexDigits[] = "0123456789abcdef";
@@ -203,10 +252,12 @@ void FaissVectorStore::saveMetadata() const {
         e["faiss_id"]          = fid;
         e["id"]                = entry.id;
         e["context_signature"] = entry.context_signature;
+        e["signature_hash"]    = entry.signature_hash;
         e["template_str"]      = entry.template_str;
         e["domain"]            = entry.domain;
         e["created_at"]        = entry.created_at;
         e["embedding"]         = entry.embedding;
+        e["ivf_trained"]       = ivf_trained_;
 
         if (!entry.tq_codes.empty()) {
             std::string hex;
@@ -248,6 +299,9 @@ void FaissVectorStore::loadMetadata() {
         int64_t fid            = e.at("faiss_id").get<int64_t>();
         entry.id               = e.at("id").get<std::string>();
         entry.context_signature = e.at("context_signature").get<std::string>();
+        entry.signature_hash   = e.contains("signature_hash")
+                                     ? e.at("signature_hash").get<std::string>()
+                                     : "";  // empty for entries written before this field existed
         entry.template_str     = e.at("template_str").get<std::string>();
         entry.domain           = e.at("domain").get<std::string>();
         entry.created_at       = e.at("created_at").get<long long>();
@@ -269,28 +323,41 @@ void FaissVectorStore::loadMetadata() {
             entry.tq_codes = std::move(codes);
         }
 
+        // Read ivf_trained flag from first entry (all rows carry the same value)
+        if (e.contains("ivf_trained")) {
+            ivf_trained_ = e.at("ivf_trained").get<bool>();
+        }
+
         entry_id_to_faiss_id_[entry.id] = fid;
         id_to_entry_[fid]               = std::move(entry);
         if (fid >= next_id_) next_id_   = fid + 1;
     }
 
-    spdlog::info("FaissVectorStore::loadMetadata: restored {} entries", id_to_entry_.size());
+    spdlog::info("FaissVectorStore::loadMetadata: restored {} entries (ivf={})",
+                 id_to_entry_.size(), ivf_trained_ ? "yes" : "flat");
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// loadFromDisk — loads the FAISS binary index
+// loadFromDisk — loads the persisted FAISS index (flat or IVF+PQ)
 // ──────────────────────────────────────────────────────────────────────────────
 void FaissVectorStore::loadFromDisk() {
     faiss::Index* raw = faiss::read_index(index_path_.c_str());
     if (!raw) throw std::runtime_error("faiss::read_index returned null");
-    auto* ivfpq = dynamic_cast<faiss::IndexIVFPQ*>(raw);
-    if (!ivfpq) {
+
+    if (auto* flat = dynamic_cast<faiss::IndexFlatIP*>(raw)) {
+        flat_index_.reset(flat);
+        ivf_trained_ = false;
+        spdlog::info("FaissVectorStore: loaded flat index from disk");
+    } else if (auto* ivfpq = dynamic_cast<faiss::IndexIVFPQ*>(raw)) {
+        ivf_index_.reset(ivfpq);
+        ivf_index_->nprobe = NPROBE;
+        ivf_trained_       = ivfpq->is_trained;
+        spdlog::info("FaissVectorStore: loaded IVF+PQ index from disk (trained={})",
+                     ivf_trained_);
+    } else {
         delete raw;
-        throw std::runtime_error("Loaded FAISS index is not IndexIVFPQ");
+        throw std::runtime_error("Loaded FAISS index is neither IndexFlatIP nor IndexIVFPQ");
     }
-    index_.reset(ivfpq);
-    index_->nprobe = NPROBE;
-    trained_       = index_->is_trained;
 }
 
 } // namespace lettucecache::cache
