@@ -1,13 +1,36 @@
 #include "ValidationService.h"
 #include "../quantization/TurboQuantizer.h"
 #include <cmath>
+#include <cstdlib>
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 namespace lettucecache::validation {
 
 ValidationService::ValidationService(double threshold,
                                       quantization::TurboQuantizer* tq)
-    : threshold_(threshold), tq_(tq) {}
+    : threshold_(threshold), tq_(tq)
+{
+    // Parse DOMAIN_THRESHOLDS env var: JSON object e.g. {"faq":0.75,"compliance":0.92}
+    const char* env = std::getenv("DOMAIN_THRESHOLDS");
+    if (env) {
+        try {
+            auto obj = nlohmann::json::parse(env);
+            for (auto& [domain, val] : obj.items()) {
+                domain_thresholds_[domain] = val.get<double>();
+            }
+            spdlog::info("ValidationService: loaded {} domain threshold overrides",
+                         domain_thresholds_.size());
+        } catch (const std::exception& e) {
+            spdlog::warn("ValidationService: failed to parse DOMAIN_THRESHOLDS: {}", e.what());
+        }
+    }
+}
+
+double ValidationService::thresholdForDomain(const std::string& domain) const {
+    auto it = domain_thresholds_.find(domain);
+    return (it != domain_thresholds_.end()) ? it->second : threshold_;
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // cosineSimilarity
@@ -45,7 +68,10 @@ double ValidationService::contextSignatureScore(
     const orchestrator::ContextObject& ctx,
     const cache::CacheEntry& candidate)
 {
-    return (ctx.signature_hash == candidate.context_signature) ? 1.0 : 0.0;
+    // Compare context_fingerprint (deployment context only, no query intent).
+    // Two differently-phrased queries in the same deployment context share the
+    // same fingerprint — FAISS cosine handles query-level semantic matching.
+    return (ctx.context_fingerprint == candidate.context_signature) ? 1.0 : 0.0;
 }
 
 double ValidationService::domainScore(
