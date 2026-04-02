@@ -1,6 +1,8 @@
 #pragma once
 #include "../orchestrator/ContextBuilder.h"
 #include "../cache/FaissVectorStore.h"
+#include <string>
+#include <unordered_map>
 
 namespace lettucecache::quantization { class TurboQuantizer; }
 
@@ -21,9 +23,14 @@ public:
     bool isHit(const orchestrator::ContextObject& query_ctx,
                const cache::CacheEntry& candidate) const;
 
+    // Returns per-domain threshold override if configured via DOMAIN_THRESHOLDS
+    // env var (JSON: {"faq":0.75,"compliance":0.92}), otherwise the global default.
+    double thresholdForDomain(const std::string& domain) const;
+
 private:
     double                        threshold_;
     quantization::TurboQuantizer* tq_;  // non-owning; nullptr = TQ disabled
+    std::unordered_map<std::string, double> domain_thresholds_;
 
     // Cosine similarity.
     // If candidate.tq_codes is non-empty and tq_ != nullptr, uses TurboQuant
