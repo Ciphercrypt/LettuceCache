@@ -25,7 +25,9 @@ enum class CircuitState : uint8_t { CLOSED = 0, OPEN = 1, HALF_OPEN = 2 };
 
 class EmbeddingClient {
 public:
-    explicit EmbeddingClient(const std::string& base_url);
+    // expected_dim: if > 0, the dimension field in sidecar responses is validated
+    // against this value. Mismatch logs an error and returns an empty vector.
+    explicit EmbeddingClient(const std::string& base_url, int expected_dim = 0);
     ~EmbeddingClient();
 
     EmbeddingClient(const EmbeddingClient&)            = delete;
@@ -43,6 +45,7 @@ public:
 
 private:
     std::string base_url_;
+    int         expected_dim_{0};
 
     // Persistent CURL handle — reused across calls (no per-call TLS handshake).
     CURL*       curl_{nullptr};
