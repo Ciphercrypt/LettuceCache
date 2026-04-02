@@ -34,7 +34,9 @@ void EmbeddingClient::teardownCurl() {
     curl_global_cleanup();
 }
 
-EmbeddingClient::EmbeddingClient(const std::string& base_url) : base_url_(base_url) {
+EmbeddingClient::EmbeddingClient(const std::string& base_url, int expected_dim)
+    : base_url_(base_url), expected_dim_(expected_dim)
+{
     initCurl();
 }
 
@@ -145,8 +147,18 @@ std::vector<float> EmbeddingClient::embed(const std::string& text) {
         auto raw = doPost("/embed", req.dump());
         if (!raw) return {};
         auto resp = nlohmann::json::parse(*raw);
-        if (resp.contains("embedding") && resp["embedding"].is_array())
+        if (resp.contains("embedding") && resp["embedding"].is_array()) {
+            if (expected_dim_ > 0 && resp.contains("dimension")) {
+                int returned_dim = resp["dimension"].get<int>();
+                if (returned_dim != expected_dim_) {
+                    spdlog::error("EmbeddingClient::embed: dimension mismatch "
+                                  "expected={} got={} — model may have changed",
+                                  expected_dim_, returned_dim);
+                    return {};
+                }
+            }
             return resp["embedding"].get<std::vector<float>>();
+        }
         spdlog::warn("EmbeddingClient::embed: unexpected response");
     } catch (const std::exception& e) {
         spdlog::error("EmbeddingClient::embed: {}", e.what());
@@ -165,6 +177,15 @@ std::vector<std::vector<float>> EmbeddingClient::embedBatch(
         if (!raw) return results;
         auto resp = nlohmann::json::parse(*raw);
         if (resp.contains("embeddings") && resp["embeddings"].is_array()) {
+            if (expected_dim_ > 0 && resp.contains("dimension")) {
+                int returned_dim = resp["dimension"].get<int>();
+                if (returned_dim != expected_dim_) {
+                    spdlog::error("EmbeddingClient::embedBatch: dimension mismatch "
+                                  "expected={} got={} — model may have changed",
+                                  expected_dim_, returned_dim);
+                    return results;
+                }
+            }
             for (const auto& arr : resp["embeddings"])
                 results.push_back(arr.get<std::vector<float>>());
         }
