@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -110,7 +111,6 @@ private:
     struct FreqEntry {
         std::vector<std::chrono::steady_clock::time_point> timestamps;
     };
-    mutable std::mutex freq_mutex_;
     mutable std::unordered_map<std::string, FreqEntry> freq_map_;
 
     // ── Domain adaptive threshold state ───────────────────────────────────
@@ -121,8 +121,13 @@ private:
             return requests > 0 ? static_cast<float>(hits) / requests : 0.3f;
         }
     };
-    mutable std::mutex domain_mutex_;
     mutable std::unordered_map<std::string, DomainStats> domain_stats_;
+
+    // Single shared_mutex guards both freq_map_ and domain_stats_.
+    // Shared lock for read-only signals (frequencyScore, effectiveThreshold),
+    // exclusive lock for mutations (recordRequest, recordCacheHit, evictExpired).
+    // Eliminates dual-mutex deadlock risk from independent lock acquisition order.
+    mutable std::shared_mutex policy_mutex_;
 
     // ── Signal computations ───────────────────────────────────────────────
     float frequencyScore(const std::string& sig_hash) const;
