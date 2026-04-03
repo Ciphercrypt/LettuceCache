@@ -61,67 +61,130 @@ docker compose up          # starts Redis + Python sidecar + C++ orchestrator
 The system is a **context-aware semantic cache** that intercepts LLM queries through two cache levels before hitting OpenAI:
 
 ```
-HTTP /query → QueryOrchestrator
-    → L1: Redis exact-match on SHA-256 context signature (sub-ms)
-    → L2: FAISS IVF+PQ ANN search (top_k=5) + ValidationService composite scoring
-    → LLM: OpenAIAdapter fallback (async enqueue to CacheBuilderWorker)
+POST /query
+  ├─ High-temperature bypass (temperature ≥ 0.7 → LLM directly, no cache)
+  ├─ ContextBuilder → signature_hash (L1) + context_fingerprint (L2)
+  ├─ L1: Redis GET lc:l1:{signature_hash}      ~1–3 ms
+  ├─ L2: FAISS search + ValidationService      ~25–60 ms
+  └─ LLM fallback → async CacheBuilderWorker
 ```
 
 ### Key architectural constraints
 
-**Two-level cache key design**: `ContextBuilder` extracts intent (first 3 non-stopword tokens), domain, and a hashed user scope, then computes `SHA-256(intent:domain:user_scope)` as `signature_hash`. This is the L1 key and the context component of the L2 validation score. This prevents false hits where identical query text means different things in different conversation contexts.
+**Two-hash key design** (`src/orchestrator/ContextBuilder.cpp`):
 
-**Validation scoring** (`ValidationService`): composite score = `0.60 × cosine_sim + 0.25 × context_signature_match + 0.15 × domain_match`. Threshold is 0.85. A perfect cosine + domain match (0.75) still fails if context differs — intentional design. Weights are compile-time constants in `src/validation/ValidationService.h`.
+`ContextBuilder::build()` produces two hashes from the same inputs:
 
-**Static library pattern**: All source files compile into `lettucecache_lib` (STATIC). Both the main executable and test binaries link against this library — avoids double compilation.
+```
+signature_hash = SHA-256(
+  system_prompt_hash : response_format_key : tools_hash : tool_choice :
+  intent : domain : user_scope : model :
+  temp_bucket : top_p_bucket : max_tokens_bucket : seed :
+  turn_0:...|turn_1:...|...
+)
 
-**Async write path**: `QueryOrchestrator` returns the LLM response to the caller immediately. Cache population (templatize → Redis SET × 2 → FAISS add) happens on a single background thread in `CacheBuilderWorker` via `std::condition_variable` queue. `AdmissionController` gates writes: a query must appear at least 2× within a 300s window before it's admitted to the cache.
+context_fingerprint = SHA-256(
+  system_prompt_hash : response_format_key : tools_hash : tool_choice :
+  domain : user_scope : model :
+  temp_bucket : top_p_bucket : max_tokens_bucket : seed :
+  turn_0:...|turn_1:...|...
+)
+```
 
-**Composition root**: `HttpServer` owns all component lifetimes as `unique_ptr` and wires them at construction. It is the only place where concrete types are instantiated — everything else works through references/pointers.
+The only difference: `context_fingerprint` omits the query `intent`.
 
-**Python sidecar**: Separate FastAPI process serving `sentence-transformers/all-MiniLM-L6-v2` (384-dim, L2-normalized). The C++ `EmbeddingClient` calls it via libcurl. Both `/embed` (single) and `/embed_batch` (up to 256) endpoints exist; the C++ orchestrator currently only uses `/embed`. EmbeddingClient now has a persistent CURL handle (no per-call TLS handshake) and a 3-state circuit breaker (CLOSED/OPEN/HALF_OPEN, 5-failure threshold, 30s reset).
+- `signature_hash` → L1 exact-match key (`lc:l1:{sig_hash}`). Two requests must phrase the question identically to share an L1 entry.
+- `context_fingerprint` → stored in `CacheEntry::context_signature`; compared by `ValidationService::contextSignatureScore()`. Two differently-phrased questions in the same deployment context share the same fingerprint, allowing L2 semantic hits.
 
-**TurboQuantizer** (`src/quantization/TurboQuantizer.h/.cpp`): Optional data-oblivious vector quantizer (arXiv:2504.19874). Enabled via `ENABLE_TURBO_QUANT=1` env var. Uses Randomized Hadamard Transform + Lloyd-Max scalar codebooks (1–4 bits) for MSE-optimal compression, plus 1-bit QJL on the residual for unbiased inner-product estimation. At 4 bits, d=384: 196 bytes/vector (7.8× vs FP32). Key property: `E[TQ_ip(y, encode(x))] = <y, x>` — the composite validation threshold remains statistically valid after compression. `IVectorStore` abstract interface added for future Milvus migration.
+Without the split, max L2 score for a paraphrased query = `0.60 + 0.15 = 0.75`, below the 0.85 threshold. With it, a paraphrase scoring 0.92 cosine gets `0.60×0.92 + 0.25 + 0.15 = 0.952`.
+
+**`CacheDimensions` struct** (`src/orchestrator/ContextBuilder.h`): all LLM call parameters that affect response uniqueness. Passed to `ContextBuilder::build()` from `QueryOrchestrator`.
+
+Framing parameters (exact in key): `system_prompt`, `response_format`, `response_schema`, `tools`, `tool_choice`
+Distribution parameters (bucketed): `temperature` (1 d.p.), `top_p` (1 d.p.), `max_tokens` (none/short/medium/long), `seed` (exact or "none"), `model`
+
+**Validation scoring** (`src/validation/ValidationService.cpp`):
+```
+score = 0.60 × cosine_sim
+      + 0.25 × (context_fingerprint == candidate.context_signature ? 1 : 0)
+      + 0.15 × (domain match ? 1 : 0)
+```
+Threshold defaults to 0.85; overridable per-domain via `DOMAIN_THRESHOLDS`. Weights are compile-time constants in `src/validation/ValidationService.h`.
+
+**`CacheEntry` struct** (`src/cache/FaissVectorStore.h`):
+- `context_signature` — stores the `context_fingerprint` (not full sig_hash). Used by `ValidationService` for L2 context matching.
+- `signature_hash` — stores the full sig_hash. Used by DELETE handlers to reconstruct the correct `lc:l1:{sig_hash}` Redis key for cleanup.
+
+**Two-phase FAISS index** (`src/cache/FaissVectorStore.cpp`):
+- Below `MIN_IVF_TRAIN_VEC` (3 900 = 39 × NLIST): `IndexFlatIP` — exact search, 100% recall.
+- At/above threshold: auto-migrates to `IndexIVFPQ` — approximate, memory-efficient. Migration trains on all real vectors (no random padding).
+
+**Async write path**: `QueryOrchestrator` returns immediately. All admission + write work happens on the `CacheBuilderWorker` background thread. Write pipeline: `AdmissionController` (frequency gate) → `ResponseQualityFilter` (hard rejects) → `IntelligentAdmissionPolicy` (CVF) → `Templatizer` → `FaissVectorStore::add()` → `Redis MULTI/EXEC (L1 + slots)` → `Redis SADD (domain index)`.
+
+**Tombstone-first DELETE**: `DELETE /cache/{entry_id}` writes tombstone → calls `FaissVectorStore::find()` to get sig_hash + domain → removes from FAISS → deletes `lc:l1:{sig_hash}` → deletes `lc:slots:{domain}:{entry_id}`. Tombstone is checked in `QueryOrchestrator` before returning any L2 hit.
+
+**Static library pattern**: All source files compile into `lettucecache_lib` (STATIC). Both the main executable and test binaries link against it — avoids double compilation.
+
+**Composition root**: `HttpServer` owns all component lifetimes as `unique_ptr`. No other component creates its own dependencies.
+
+**Python sidecar**: FastAPI process serving `sentence-transformers/all-MiniLM-L6-v2` (384-dim, L2-normalized). `EmbeddingClient` calls it via persistent libcurl handle. Dimension validated on every response against `EMBED_DIM`. 3-state circuit breaker (CLOSED/OPEN/HALF_OPEN, 5-failure threshold, 30s reset).
+
+**TurboQuantizer** (`src/quantization/`): Optional data-oblivious vector quantizer (arXiv:2504.19874). Enabled via `ENABLE_TURBO_QUANT=1`. RHT + Lloyd-Max MSE (3 bits) + QJL residual (1 bit). At 4 bits, d=384: 244 bytes/vector (6.3× vs FP32). `E[TQ_ip(y, encode(x))] = ⟨y, x⟩` — threshold remains valid after compression. Seeds configurable via env vars.
+
+**IVectorStore** (`src/cache/IVectorStore.h`): Abstract interface with `add/search/find/remove/size/persist`. `FaissVectorStore` implements it.
 
 ### Configuration
 
-All runtime config is environment variables. Tuning parameters that require source changes:
-- Validation threshold and scoring weights: `src/api/HttpServer.cpp` and `src/validation/ValidationService.h`
-- Admission control: `src/api/HttpServer.cpp` (`AdmissionController` constructor)
-- FAISS index parameters (NLIST, NPROBE, M_PQ): `src/cache/FaissVectorStore.h`
-- TurboQuant enable/disable: `ENABLE_TURBO_QUANT=1` env var (default off)
-- TurboQuant rotation/QJL seeds: `TurboQuantizer` constructor (currently hardcoded 42/137)
-
-### Known gaps
-
-- **FAISS metadata not persisted**: ~~FIXED~~ — `id_to_entry_` now serialised to `<index_path>.meta.json` sidecar on every `persist()` call. `loadFromDisk()` loads both the FAISS binary and the JSON sidecar.
-- **Redis has no mutex**: `RedisCacheAdapter` uses a single `redisContext*` with no thread protection. cpp-httplib is multi-threaded — concurrent requests race on the same connection. *(still open — connection pool or per-request mutex needed)*
-- **Templatizer render path is dead code**: `Templatizer::render()` is implemented and tested but never called in `QueryOrchestrator`. L2 hits return `template_str` raw, which may contain `{{SLOT_N}}` placeholders. *(still open)*
-- **Redis Streams unused**: `xadd`/`xread` are implemented in `RedisCacheAdapter` but `CacheBuilderWorker` uses an in-process `std::queue` instead. *(still open)*
-- **FAISS read/write uses exclusive mutex**: ~~FIXED~~ — `FaissVectorStore` now uses `std::shared_mutex`; `search()` holds a shared lock (concurrent reads allowed), `add()`/`remove()`/`persist()` hold exclusive locks.
-- **Context ordering affects hash**: ~~FIXED~~ — `ContextBuilder` sorts context turns before SHA-256, so identical turns in any order produce the same `signature_hash`.
-
-### New components (added in TurboQuant integration sprint)
-
-**TurboQuantizer** (`src/quantization/`): Data-oblivious vector quantizer (arXiv:2504.19874).
-- Enable: `ENABLE_TURBO_QUANT=1`; disable (default): omit env var
-- Code layout: `[float32 norm][padded_dim MSE bits][(dim) QJL sign bits]` — d=384 → 244 bytes vs 1536 FP32
-- Seeds: rotation seed=42, QJL seed=137 (constructor args)
-
-**IVectorStore** (`src/cache/IVectorStore.h`): Abstract interface with `search/add/remove/size/persist`.
-`FaissVectorStore` implements it. Swap for `MilvusVectorStore` (Phase 3) without touching callers.
-
-### Configuration (env vars added in sprint)
+All runtime config is environment variables:
 
 | Var | Default | Notes |
 |-----|---------|-------|
-| `ENABLE_TURBO_QUANT` | *(unset)* | Set to `1` to enable TurboQuantizer for encoding + scoring |
-| `LLM_MODEL` | `gpt-4o-mini` | OpenAI model name passed to `OpenAIAdapter` |
+| `REDIS_HOST` | `localhost` | |
+| `REDIS_PORT` | `6379` | |
+| `EMBED_URL` | `http://localhost:8001` | Python sidecar |
+| `EMBED_DIM` | `384` | Must match model output dim |
+| `OPENAI_API_KEY` | *(empty)* | Empty → stub mode |
+| `LLM_MODEL` | `gpt-4o-mini` | Default model name |
+| `HTTP_PORT` | `8080` | |
+| `FAISS_INDEX_PATH` | `./faiss.index` | Also writes `.meta.json` sidecar |
+| `ENABLE_TURBO_QUANT` | *(unset)* | `1` to enable |
+| `TURBO_ROTATION_SEED` | `42` | RHT seed |
+| `TURBO_QJL_SEED` | `137` | QJL seed |
+| `CACHE_QUALITY_THRESHOLD` | `0.40` | Min quality score for admission |
+| `DOMAIN_THRESHOLDS` | *(unset)* | JSON e.g. `{"faq":0.75,"compliance":0.92}` |
 
-### Metadata persistence detail
+Tuning parameters requiring source changes:
+- Scoring weights: `src/validation/ValidationService.h` (W_COSINE/W_CONTEXT/W_DOMAIN)
+- Admission CVF weights: `src/builder/IntelligentAdmissionPolicy.h` (IntelligentAdmissionConfig)
+- High-temp bypass threshold: `src/orchestrator/QueryOrchestrator.h` (HIGH_TEMP_THRESHOLD)
+- FAISS IVF migration threshold: `src/cache/FaissVectorStore.h` (MIN_IVF_TRAIN_VEC)
+- FAISS NLIST/NPROBE/M_PQ: `src/cache/FaissVectorStore.h`
+
+### Redis key schema
+
+| Key pattern | Type | TTL | Contents |
+|---|---|---|---|
+| `lc:l1:{sig_hash}` | string | 3 600s | Full LLM response |
+| `lc:slots:{domain}:{entry_id}` | string | 7 200s | JSON array of slot values |
+| `lc:tomb:{entry_id}` | string | 86 400s | Tombstone sentinel ("1") |
+| `lc:domain_idx:{domain}` | set | no TTL | Set of entry_ids for the domain |
+
+### Metadata persistence
 
 `FaissVectorStore::persist()` writes two files:
-- `<FAISS_INDEX_PATH>` — raw FAISS binary (via `faiss::write_index`)
-- `<FAISS_INDEX_PATH>.meta.json` — JSON array of `CacheEntry` objects including embeddings and optional `tq_codes_hex`
+- `<FAISS_INDEX_PATH>` — raw FAISS binary (`faiss::write_index`)
+- `<FAISS_INDEX_PATH>.meta.json` — JSON array of `CacheEntry` objects (embeddings, tq_codes_hex, context_signature, signature_hash, domain, template_str, created_at, ivf_trained flag)
 
-On startup, both are loaded. If the `.meta.json` sidecar is missing, the FAISS binary is still loaded (index is usable for training) but all metadata lookups return empty until rebuilt from traffic.
+On startup, both are loaded. `signature_hash` field is optional in the JSON (empty string for entries written before this field was added — DELETE will not clean up their L1 key, but they expire via TTL).
+
+### Known gaps
+
+- **Redis Streams unused**: `xadd`/`xread` are implemented in `RedisCacheAdapter` but `CacheBuilderWorker` uses an in-process `std::queue` instead. *(still open)*
+- **FAISS metadata not persisted**: ~~FIXED~~
+- **Redis has no mutex**: ~~FIXED~~
+- **Templatizer render dead code**: ~~FIXED~~
+- **FAISS exclusive mutex**: ~~FIXED~~
+- **Context sort destroys order**: ~~FIXED~~
+- **DELETE wrong L1 key**: ~~FIXED~~ — `FaissVectorStore::find()` retrieves sig_hash before removal; correct `lc:l1:{sig_hash}` deleted.
+- **L2 context_signature used full sig_hash**: ~~FIXED~~ — `context_fingerprint` (no intent) stored in `CacheEntry::context_signature`; paraphrased queries now get L2 hits.
+- **Slot keys not deleted on eviction**: ~~FIXED~~ — both DELETE handlers now clean up slot keys via `find()`.
