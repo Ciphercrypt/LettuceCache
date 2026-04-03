@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <shared_mutex>
 #include <spdlog/spdlog.h>
 
 namespace lettucecache::builder {
@@ -56,6 +57,7 @@ IntelligentAdmissionPolicy::IntelligentAdmissionPolicy(
 // ─────────────────────────────────────────────────────────────────────────────
 
 void IntelligentAdmissionPolicy::evictExpiredFrequency() const {
+    // Caller must hold exclusive lock on policy_mutex_
     const auto now = std::chrono::steady_clock::now();
     for (auto it = freq_map_.begin(); it != freq_map_.end(); ) {
         auto& ts = it->second.timestamps;
@@ -70,19 +72,14 @@ void IntelligentAdmissionPolicy::evictExpiredFrequency() const {
 
 void IntelligentAdmissionPolicy::recordRequest(const std::string& sig_hash,
                                                 const std::string& domain) {
-    {
-        std::lock_guard<std::mutex> lock(freq_mutex_);
-        evictExpiredFrequency();
-        freq_map_[sig_hash].timestamps.push_back(std::chrono::steady_clock::now());
-    }
-    {
-        std::lock_guard<std::mutex> lock(domain_mutex_);
-        domain_stats_[domain].requests++;
-    }
+    std::unique_lock<std::shared_mutex> lock(policy_mutex_);
+    evictExpiredFrequency();
+    freq_map_[sig_hash].timestamps.push_back(std::chrono::steady_clock::now());
+    domain_stats_[domain].requests++;
 }
 
 void IntelligentAdmissionPolicy::recordCacheHit(const std::string& domain) {
-    std::lock_guard<std::mutex> lock(domain_mutex_);
+    std::unique_lock<std::shared_mutex> lock(policy_mutex_);
     auto& stats = domain_stats_[domain];
     stats.requests++;
     stats.hits++;
@@ -99,7 +96,7 @@ void IntelligentAdmissionPolicy::recordCacheHit(const std::string& domain) {
 // requests → ≈0.87; one request 5 minutes ago → ≈0.33.
 // ─────────────────────────────────────────────────────────────────────────────
 float IntelligentAdmissionPolicy::frequencyScore(const std::string& sig_hash) const {
-    std::lock_guard<std::mutex> lock(freq_mutex_);
+    std::shared_lock<std::shared_mutex> lock(policy_mutex_);
     auto it = freq_map_.find(sig_hash);
     if (it == freq_map_.end()) return 0.0f;
 
@@ -187,7 +184,7 @@ float IntelligentAdmissionPolicy::noveltyScore(const std::vector<float>& embeddi
 // reusable, so we avoid polluting it with low-value entries.
 // ─────────────────────────────────────────────────────────────────────────────
 float IntelligentAdmissionPolicy::effectiveThreshold(const std::string& domain) const {
-    std::lock_guard<std::mutex> lock(domain_mutex_);
+    std::shared_lock<std::shared_mutex> lock(policy_mutex_);
     auto it = domain_stats_.find(domain);
     if (it == domain_stats_.end() ||
         it->second.requests < cfg_.domain_min_observations)
