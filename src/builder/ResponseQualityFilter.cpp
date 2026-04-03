@@ -73,6 +73,32 @@ static const char* const DYNAMIC_MARKERS[] = {
     nullptr
 };
 
+// Domain-aware refusal whitelist.
+// Maps domain → patterns that should NOT be treated as refusals in that domain.
+// E.g. "I cannot confirm your balance without authentication" is a valid
+// security response in banking, not an LLM ignorance refusal.
+struct DomainRefusalWhitelist {
+    const char* domain;
+    const char* pattern;
+};
+
+static const DomainRefusalWhitelist DOMAIN_REFUSAL_WHITELIST[] = {
+    {"banking",    "i cannot confirm"},
+    {"banking",    "i'm unable to verify"},
+    {"banking",    "i am unable to verify"},
+    {"banking",    "cannot be disclosed"},
+    {"finance",    "i cannot confirm"},
+    {"finance",    "cannot be disclosed"},
+    {"compliance", "i cannot provide"},
+    {"compliance", "i'm unable to provide"},
+    {"compliance", "i am unable to provide"},
+    {"compliance", "cannot be shared"},
+    {"security",   "i cannot confirm"},
+    {"security",   "i'm unable to verify"},
+    {"security",   "cannot authenticate"},
+    {nullptr,      nullptr}
+};
+
 // Personal pronouns indicating a highly individualised response.
 // High density → response is tailored to a specific person/session.
 static const char* const PERSONAL_WORDS[] = {
@@ -161,10 +187,26 @@ float ResponseQualityFilter::conversationalPenalty(const std::string& lower,
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Signal: refusal / ignorance penalty
+// Domain-aware: patterns in DOMAIN_REFUSAL_WHITELIST are not treated as
+// refusals for their configured domain (e.g. banking security responses).
 // ──────────────────────────────────────────────────────────────────────────────
-float ResponseQualityFilter::refusalPenalty(const std::string& lower) const {
+float ResponseQualityFilter::refusalPenalty(const std::string& lower,
+                                             const std::string& domain) const {
     for (const char* const* p = REFUSAL_MARKERS; *p != nullptr; ++p) {
-        if (lower.find(*p) != std::string::npos) return 0.60f;
+        if (lower.find(*p) == std::string::npos) continue;
+
+        // Check domain whitelist before applying penalty
+        if (!domain.empty()) {
+            bool whitelisted = false;
+            for (const auto* w = DOMAIN_REFUSAL_WHITELIST; w->domain != nullptr; ++w) {
+                if (domain == w->domain && lower.find(w->pattern) != std::string::npos) {
+                    whitelisted = true;
+                    break;
+                }
+            }
+            if (whitelisted) continue;
+        }
+        return 0.60f;
     }
     return 0.0f;
 }
@@ -269,7 +311,8 @@ ResponseQualityFilter::ResponseQualityFilter(float threshold)
 
 ResponseQualityFilter::Result ResponseQualityFilter::evaluate(
     const std::string& response,
-    const std::string& query) const
+    const std::string& query,
+    const std::string& domain) const
 {
     const size_t chars = response.size();
     const std::string lower = toLower(response);
@@ -282,7 +325,7 @@ ResponseQualityFilter::Result ResponseQualityFilter::evaluate(
     // ── Compute all signals ──────────────────────────────────────────────────
     const float len    = lengthScore(response);
     const float conv   = conversationalPenalty(lower, chars);
-    const float refus  = refusalPenalty(lower);
+    const float refus  = refusalPenalty(lower, domain);
     const float sess   = sessionBoundPenalty(lower);
     const float dyn    = dynamicContentPenalty(lower);
     const float pers   = personalDensityPenalty(lower, words);
