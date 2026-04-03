@@ -41,9 +41,12 @@ public:
     explicit ResponseQualityFilter(float threshold = 0.40f);
 
     // Evaluate whether `response` is worth caching for the given `query`.
-    // Both strings should be the raw LLM output / user query respectively.
+    // `domain` is used for domain-aware refusal whitelisting — patterns that
+    // look like refusals in general text may be valid cacheable responses in
+    // specific regulated domains (e.g. banking security responses).
     Result evaluate(const std::string& response,
-                    const std::string& query) const;
+                    const std::string& query,
+                    const std::string& domain = {}) const;
 
     float threshold() const { return threshold_; }
 
@@ -54,7 +57,8 @@ private:
     float lengthScore(const std::string& response) const;
     float conversationalPenalty(const std::string& lower,
                                  size_t char_count) const;
-    float refusalPenalty(const std::string& lower) const;
+    float refusalPenalty(const std::string& lower,
+                         const std::string& domain) const;
     float sessionBoundPenalty(const std::string& lower) const;
     float dynamicContentPenalty(const std::string& lower) const;
     float personalDensityPenalty(const std::string& lower,
