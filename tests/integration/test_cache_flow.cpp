@@ -19,6 +19,8 @@
 #include "cache/FaissVectorStore.h"
 #include "validation/ValidationService.h"
 #include "builder/AdmissionController.h"
+#include "builder/IntelligentAdmissionPolicy.h"
+#include "builder/ResponseQualityFilter.h"
 #include "builder/Templatizer.h"
 #include "builder/CacheBuilderWorker.h"
 
@@ -121,9 +123,13 @@ TEST(IntegrationFaiss, RemoveEntry) {
 TEST(IntegrationCacheFlow, BuilderWritesToRedisAndFaiss) {
     cache::RedisCacheAdapter redis(redisHost(), redisPort());
     cache::FaissVectorStore  faiss(8, "/tmp/lc_test_builder.index");
-    builder::AdmissionController admission(2, 300, 65536);
-    builder::Templatizer templatizer;
-    builder::CacheBuilderWorker worker(redis, faiss, admission, templatizer);
+    builder::AdmissionController       admission(2, 300, 65536);
+    builder::IntelligentAdmissionPolicy policy(faiss);
+    // threshold=0.0 so short test responses are not rejected by the quality gate
+    builder::ResponseQualityFilter     quality_filter(0.0f);
+    builder::Templatizer               templatizer;
+    builder::CacheBuilderWorker worker(redis, faiss, admission, policy,
+                                       quality_filter, templatizer);
 
     worker.start();
 
@@ -133,13 +139,14 @@ TEST(IntegrationCacheFlow, BuilderWritesToRedisAndFaiss) {
     admission.recordQuery(sig);
 
     builder::CacheEntryRequest req;
-    req.query          = "integration test query";
-    req.context        = {};
-    req.domain         = "test";
-    req.user_id        = "tester";
-    req.signature_hash = sig;
-    req.llm_response   = "The answer is 42.";
-    req.embedding      = fakeEmbed(0.3f);
+    req.query               = "integration test query";
+    req.context             = {};
+    req.domain              = "test";
+    req.user_id             = "tester";
+    req.signature_hash      = sig;
+    req.context_fingerprint = sig;  // same as sig for test purposes
+    req.llm_response        = "The answer is 42.";
+    req.embedding           = fakeEmbed(0.3f);
 
     worker.enqueue(req);
 
@@ -162,9 +169,12 @@ TEST(IntegrationCacheFlow, BuilderWritesToRedisAndFaiss) {
 TEST(IntegrationCacheFlow, BuilderRejectsWhenAdmissionNotMet) {
     cache::RedisCacheAdapter redis(redisHost(), redisPort());
     cache::FaissVectorStore  faiss(8, "/tmp/lc_test_noadmit.index");
-    builder::AdmissionController admission(5, 300, 65536); // high threshold
-    builder::Templatizer templatizer;
-    builder::CacheBuilderWorker worker(redis, faiss, admission, templatizer);
+    builder::AdmissionController       admission(5, 300, 65536); // high threshold
+    builder::IntelligentAdmissionPolicy policy(faiss);
+    builder::ResponseQualityFilter     quality_filter(0.0f);
+    builder::Templatizer               templatizer;
+    builder::CacheBuilderWorker worker(redis, faiss, admission, policy,
+                                       quality_filter, templatizer);
 
     worker.start();
 
@@ -173,10 +183,11 @@ TEST(IntegrationCacheFlow, BuilderRejectsWhenAdmissionNotMet) {
     admission.recordQuery(sig);
 
     builder::CacheEntryRequest req;
-    req.signature_hash = sig;
-    req.llm_response   = "response";
-    req.embedding      = fakeEmbed(0.1f);
-    req.domain         = "test";
+    req.signature_hash      = sig;
+    req.context_fingerprint = sig;
+    req.llm_response        = "response";
+    req.embedding           = fakeEmbed(0.1f);
+    req.domain              = "test";
 
     worker.enqueue(req);
     std::this_thread::sleep_for(std::chrono::milliseconds(300));

@@ -52,9 +52,26 @@ uvicorn main:app --port 8001
 ## Run the Full Stack
 
 ```bash
+# Preferred: single-command local dev (manages Redis + sidecar + binary)
+./dev.sh                   # start all three processes
+./dev.sh stop              # stop all three (kills by port, not PID file)
+
+# Manual: binary only (Redis + sidecar must already be running)
+./build/lettucecache       # reads env vars listed below
+
+# Docker
 docker compose up          # starts Redis + Python sidecar + C++ orchestrator
-./build/lettucecache       # or run the binary directly after setting env vars
 ```
+
+## Smoke Test
+
+```bash
+./demo.sh                  # runs 9 end-to-end scenarios, exits 0 on all-pass
+```
+
+Covers: cold start admission, L1 exact hit, L2 semantic hit (paraphrase), domain isolation, system-prompt isolation, high-temperature bypass, single-entry DELETE, domain bulk invalidation.
+
+The demo restarts the binary with a fresh FAISS index at the start of each run to guarantee a clean state. It requires `dev.sh` to already be running (Redis + sidecar must be up).
 
 ## Architecture
 
