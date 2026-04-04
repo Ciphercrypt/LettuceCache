@@ -19,8 +19,9 @@ FaissVectorStore::FaissVectorStore(int dimension,
     : dim_(dimension), index_path_(index_path),
       meta_path_(index_path + ".meta.json"), tq_(tq)
 {
-    // Phase 1: always start with an exact flat index for perfect recall
-    flat_index_    = std::make_unique<faiss::IndexFlatIP>(dim_);
+    // Phase 1: IndexIDMap wraps IndexFlatIP to support add_with_ids/remove_ids.
+    // IndexFlatIP alone only supports sequential add(), not add_with_ids().
+    flat_index_ = std::make_unique<faiss::IndexIDMap>(new faiss::IndexFlatIP(dim_));
     // Phase 2 components — constructed but unused until migration
     ivf_quantizer_ = std::make_unique<faiss::IndexFlatL2>(dim_);
     ivf_index_     = std::make_unique<faiss::IndexIVFPQ>(
@@ -81,8 +82,8 @@ void FaissVectorStore::migrateToIVF() {
                               all_ids.data());
     ivf_trained_ = true;
 
-    // Flat index no longer needed; reset to free memory
-    flat_index_ = std::make_unique<faiss::IndexFlatIP>(dim_);
+    // Flat index no longer needed after migration; reset to free memory
+    flat_index_ = std::make_unique<faiss::IndexIDMap>(new faiss::IndexFlatIP(dim_));
 
     spdlog::info("FaissVectorStore: IVF+PQ migration complete, trained on {} vectors", n);
 }
@@ -206,12 +207,14 @@ bool FaissVectorStore::remove(const std::string& entry_id) {
     if (it == entry_id_to_faiss_id_.end()) return false;
 
     int64_t fid = it->second;
-    faiss::IDSelectorBatch selector(1, &fid);
     if (ivf_trained_) {
+        faiss::IDSelectorBatch selector(1, &fid);
         ivf_index_->remove_ids(selector);
-    } else {
-        flat_index_->remove_ids(selector);
     }
+    // During flat phase, IndexFlatIP (inner index of IndexIDMap) does not support
+    // remove_ids. The in-memory maps are cleared below so the entry is excluded
+    // from future searches and from IVF+PQ migration. The tombstone in Redis
+    // ensures it is never served even if the flat index still holds the vector.
     id_to_entry_.erase(fid);
     entry_id_to_faiss_id_.erase(it);
 
@@ -344,8 +347,8 @@ void FaissVectorStore::loadFromDisk() {
     faiss::Index* raw = faiss::read_index(index_path_.c_str());
     if (!raw) throw std::runtime_error("faiss::read_index returned null");
 
-    if (auto* flat = dynamic_cast<faiss::IndexFlatIP*>(raw)) {
-        flat_index_.reset(flat);
+    if (auto* idmap = dynamic_cast<faiss::IndexIDMap*>(raw)) {
+        flat_index_.reset(idmap);
         ivf_trained_ = false;
         spdlog::info("FaissVectorStore: loaded flat index from disk");
     } else if (auto* ivfpq = dynamic_cast<faiss::IndexIVFPQ*>(raw)) {
@@ -356,7 +359,7 @@ void FaissVectorStore::loadFromDisk() {
                      ivf_trained_);
     } else {
         delete raw;
-        throw std::runtime_error("Loaded FAISS index is neither IndexFlatIP nor IndexIVFPQ");
+        throw std::runtime_error("Loaded FAISS index is neither IndexIDMap nor IndexIVFPQ");
     }
 }
 

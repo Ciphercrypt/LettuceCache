@@ -2,6 +2,7 @@
 #include "IVectorStore.h"
 #include <optional>
 #include <faiss/IndexFlat.h>
+#include <faiss/IndexIDMap.h>
 #include <faiss/IndexIVFPQ.h>
 #include <faiss/index_io.h>
 #include <memory>
@@ -68,9 +69,10 @@ private:
 
     quantization::TurboQuantizer* tq_;  // non-owning; nullptr = TQ disabled
 
-    // Phase 1: exact flat index used until MIN_IVF_TRAIN_VEC real vectors
-    // are available. IndexFlatIP gives perfect recall at low cardinality.
-    std::unique_ptr<faiss::IndexFlatIP> flat_index_;
+    // Phase 1: exact search until MIN_IVF_TRAIN_VEC real vectors are available.
+    // IndexIDMap wraps IndexFlatIP to add add_with_ids / remove_ids support,
+    // which IndexFlatIP alone does not provide.
+    std::unique_ptr<faiss::IndexIDMap> flat_index_;
 
     // Phase 2: IVF+PQ ANN index — activated once training threshold is met
     std::unique_ptr<faiss::IndexFlatL2> ivf_quantizer_;
