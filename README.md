@@ -122,32 +122,56 @@ Without this split, the maximum L2 validation score for a paraphrased query (dif
 
 ## Quick Start
 
-```bash
-export OPENAI_API_KEY=sk-...
-docker compose up
+### Local dev (recommended)
 
-# Health check
+Prerequisites: `cmake`, `faiss`, `hiredis`, `openssl`, `curl` via brew, and Python 3.9+ with a venv in `python_sidecar/.venv`.
+
+```bash
+# Build once
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+
+# Set up the Python sidecar venv once
+cd python_sidecar && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt && cd ..
+
+# Start everything (Redis + sidecar + binary)
+export OPENAI_API_KEY=sk-...   # optional — omit for stub mode
+./dev.sh
+
+# Verify
 curl http://localhost:8080/health
 
-# First query — LLM called, admission gate requires 2 appearances before caching
-curl -X POST http://localhost:8080/query \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "query": "What is machine learning?",
-    "domain": "tech",
-    "system_prompt": "You are a helpful technical assistant."
-  }'
-# → {"cache_hit": false, "latency_ms": 712, ...}
+# Stop everything
+./dev.sh stop
+```
 
-# Third query — L2 semantic hit on a paraphrase
-curl -X POST http://localhost:8080/query \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "query": "Explain machine learning to me",
-    "domain": "tech",
-    "system_prompt": "You are a helpful technical assistant."
-  }'
-# → {"cache_hit": true, "confidence": 0.91, "latency_ms": 48, ...}
+`dev.sh` manages all three processes. Logs go to `.dev-logs/`. Kills by port on stop so it works even if the binary was restarted mid-session.
+
+### Run the smoke test
+
+```bash
+./demo.sh
+```
+
+Covers 9 scenarios end-to-end:
+
+| Scenario | What it verifies |
+|---|---|
+| Admission gate | Cache is cold for 2 requests, then writes |
+| L1 exact hit | 0 ms Redis hit on identical query |
+| L2 semantic hit | Paraphrased queries hit at 0.89–0.95 confidence |
+| Domain isolation | Same query, different domain = miss |
+| System-prompt isolation | Different persona = different cache namespace |
+| High-temp bypass | `temperature >= 0.7` never touches cache |
+| DELETE single entry | Tombstone + FAISS eviction |
+| Domain bulk invalidation | `DELETE /cache/domain/:name` clears all entries |
+
+### Docker Compose
+
+```bash
+export OPENAI_API_KEY=sk-...
+docker compose up --build
 ```
 
 ---
